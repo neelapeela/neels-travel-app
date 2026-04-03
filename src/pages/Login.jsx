@@ -32,8 +32,11 @@ export default function Login() {
 
   return (
     <div className="card">
-      <h2>Sign In</h2>
-      <p>Sign in with your Google account to continue</p>
+      <div>
+        <h2>Welcome to Travel Itinerary</h2>
+        <p>Plan shared trips with friends in one real-time itinerary.</p>
+        <p>Sign in with Google to create or join your trips.</p>
+      </div>
       
       {error && <div className="error">{error}</div>}
       

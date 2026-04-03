@@ -30,9 +30,8 @@ html, body {
 }
 
 body {
-  display: flex;
-  place-items: center;
   min-width: 320px;
+  /* Do not flex-center the root: it breaks full-viewport app layout and can leave blank “white” bands */
 }
 
 h1 {

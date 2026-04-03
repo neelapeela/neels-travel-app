@@ -14,10 +14,15 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser)
-      syncUserWithFirestore(currentUser)
-      setLoading(false)
+      try {
+        await syncUserWithFirestore(currentUser)
+      } catch (error) {
+        console.error('Auth bootstrap failed:', error)
+      } finally {
+        setLoading(false)
+      }
     })
 
     return () => unsubscribe()
