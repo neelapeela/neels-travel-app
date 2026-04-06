@@ -37,8 +37,11 @@ export default function CreateTripModal({ onClose }) {
         return
       }
 
-      // Create trip
-      const tripId = await createTripForUser(user.uid, formData)
+      await createTripForUser(user.uid, {
+        ...formData,
+        memberDisplayName: user?.displayName,
+        memberEmail: user?.email
+      })
 
       // Close modal on success
       if (onClose) {

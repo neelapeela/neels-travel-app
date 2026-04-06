@@ -1,0 +1,124 @@
+/* Neel's Travel Book — mood-board palette: Terra Cotta, Sand, Olive, Ochre, Clay, Sea */
+:root {
+  /* Named swatches (reference card) */
+  --palette-terra-cotta: #b4513a;
+  --palette-sand: #e9e2d6;
+  --palette-olive: #5f6c54;
+  --palette-ochre: #c4a035;
+  --palette-clay: #9c6144;
+  --palette-sea: #1f3532;
+
+  /* Warm sand wash behind login + dashboard (matches landing “room”) */
+  --color-bg-sand-room: #dfcfbc;
+  --color-ink-on-sand: #1e1c1a;
+  --color-ink-on-sand-muted: #4a433c;
+
+  /* Dashboard: light “stationery” join card on sand room */
+  --color-dashboard-join-bg: #e8dfd4;
+  /* Warm paper white — not pure #fff, blends with sand card */
+  --color-dashboard-join-input-bg: #f5f1e8;
+  --color-dashboard-join-border: #a89886;
+  /* Join card inputs (also used for trip toolbar / island sand controls) */
+  --color-dashboard-join-input-border: #c4b8a8;
+
+  /* App chrome — same sea surface as Layout header (toolbar + island shell share this) */
+  --app-chrome-bg: var(--color-surface);
+  --app-chrome-border: var(--color-border);
+
+  /* Trip — sand room; toolbar + island shell = header chrome; light controls = sand from mood board */
+  --trip-canvas-bg: color-mix(in srgb, var(--color-bg-page) 93%, var(--palette-sand) 7%);
+  --trip-toolbar-bg: var(--app-chrome-bg);
+  --trip-toolbar-border: var(--app-chrome-border);
+  --trip-toolbar-shadow: var(--shadow-header);
+  --trip-toolbar-btn-bg: var(--palette-sand);
+  --trip-toolbar-btn-border: color-mix(in srgb, var(--palette-sand) 62%, var(--app-chrome-border) 38%);
+  --trip-toolbar-btn-hover-bg: var(--color-primary-action-hover);
+  --trip-toolbar-btn-hover-border: var(--palette-terra-cotta);
+  --trip-toolbar-btn-icon-hover: var(--palette-sea);
+  --trip-rim: color-mix(in srgb, var(--color-border-strong) 58%, var(--palette-sea) 42%);
+  --trip-island-bg: var(--app-chrome-bg);
+  --trip-island-border: var(--app-chrome-border);
+  --trip-map-frame-bg: var(--color-surface-elevated);
+  /* Muted labels in trip chrome (e.g. share helper) */
+  --trip-secondary-label: color-mix(in srgb, var(--color-ink-muted) 68%, var(--palette-sand) 22%, var(--palette-sea) 10%);
+
+  /* Timeline column — same stationery as dashboard join card */
+  --trip-timeline-bg: var(--color-dashboard-join-bg);
+  --trip-timeline-strip-bg: color-mix(in srgb, var(--color-dashboard-join-bg) 80%, var(--color-dashboard-join-border) 20%);
+  --trip-timeline-header-bg: var(--color-dashboard-join-bg);
+  --trip-timeline-rim: var(--color-dashboard-join-input-border);
+  --trip-timeline-rule: color-mix(in srgb, var(--color-dashboard-join-border) 38%, transparent);
+  --trip-timeline-ink: var(--color-ink-on-sand);
+  --trip-timeline-ink-muted: var(--color-ink-on-sand-muted);
+  --trip-timeline-hint: color-mix(in srgb, var(--color-ink-on-sand-muted) 88%, var(--palette-clay) 12%);
+  --trip-timeline-nav-btn-bg: var(--color-dashboard-join-input-bg);
+  --trip-timeline-nav-btn-hover-bg: #faf6ee;
+  --trip-timeline-stop-pill-bg: var(--color-dashboard-join-input-bg);
+  --trip-timeline-stop-pill-hover-bg: #faf6ee;
+  --trip-timeline-stop-active-bg: var(--palette-terra-cotta);
+  --trip-timeline-join-shadow: 0 6px 24px rgba(31, 53, 50, 0.1);
+
+  /* Dark chrome — sea (teal) family; matches dashboard dark cards + trip workspace */
+  --color-bg-page: #1a2f2c;
+  --color-surface: #243c38;
+  --color-surface-elevated: #2f4a46;
+  --color-surface-glow: rgba(95, 108, 84, 0.14);
+
+  --color-ink: #f0ebe4;
+  --color-ink-muted: #a8bdb8;
+  --color-ink-faint: #7a918c;
+
+  --color-border: #355652;
+  --color-border-strong: #3f6560;
+
+  --color-accent: var(--palette-terra-cotta);
+  --color-accent-hover: #c45f45;
+  --color-accent-subtle: rgba(180, 81, 58, 0.22);
+  /* Secondary accent = olive (labels, subtle UI chrome) */
+  --color-accent-2: var(--palette-olive);
+  --color-accent-2-hover: #6d7b62;
+  --color-accent-2-subtle: rgba(95, 108, 84, 0.22);
+  /* Tertiary = teal highlight (focus rings, links on dark sea) */
+  --color-accent-3: #4a9082;
+  --color-accent-3-hover: #5ba896;
+  --color-accent-3-subtle: rgba(74, 144, 130, 0.22);
+
+  --color-input-bg: #1c3330;
+  /* Sand CTA — text in sea ink (same idea as login/dashboard sand controls) */
+  --color-primary-action-bg: var(--palette-sand);
+  --color-primary-action-text: var(--palette-sea);
+  --color-primary-action-hover: #f2ebe3;
+
+  --color-text-on-accent-bg: #fdf9f4;
+
+  --color-black: #141210;
+
+  --color-danger: #f0b0a8;
+  --color-danger-bg: rgba(140, 55, 48, 0.28);
+  --color-danger-border: rgba(240, 176, 168, 0.35);
+
+  --font-ui: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-hero: 'Figtree', system-ui, -apple-system, sans-serif;
+  --font-display: 'Pixelify Sans', 'Courier New', monospace;
+
+  --radius-sm: 12px;
+  --radius-md: 20px;
+  --radius-lg: 28px;
+  --radius-pill: 9999px;
+
+  --shadow-sm: 0 1px 3px rgba(15, 35, 32, 0.42);
+  --shadow-card: 0 8px 32px rgba(10, 28, 26, 0.48);
+  --shadow-card-hover: 0 14px 44px rgba(8, 24, 22, 0.55);
+  --shadow-header: 0 1px 0 var(--color-border);
+
+  --space-xs: 0.35rem;
+  --space-sm: 0.5rem;
+  --space-md: 1rem;
+  --space-lg: 1.5rem;
+  --space-xl: 2rem;
+  --space-2xl: 3rem;
+
+  --ease-out: cubic-bezier(0.33, 1, 0.68, 1);
+  --duration-fast: 0.15s;
+  --duration-normal: 0.2s;
+}

@@ -3,10 +3,14 @@ import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth'
 import { auth } from '../api/firebase'
 import { syncUserWithFirestore } from '../api/user'
 
-const AuthContext = createContext()
+const AuthContext = createContext(undefined)
 
 export function useAuth() {
-  return useContext(AuthContext)
+  const value = useContext(AuthContext)
+  if (value === undefined) {
+    throw new Error('useAuth must be used within an AuthProvider')
+  }
+  return value
 }
 
 export function AuthProvider({ children }) {

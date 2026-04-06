@@ -3,6 +3,8 @@ import { Navigate } from 'react-router-dom'
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth'
 import { auth } from '../api/firebase'
 import { useAuth } from '../context/AuthContext'
+import { Button, Card, PageShell } from '../components/ui'
+import landingHeroMap from '../illustrations/landing-hero-map.png'
 import '../App.css'
 
 export default function Login() {
@@ -10,7 +12,6 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  // Redirect if already logged in
   if (user) {
     return <Navigate to="/dashboard" replace />
   }
@@ -22,7 +23,6 @@ export default function Login() {
     try {
       const provider = new GoogleAuthProvider()
       await signInWithPopup(auth, provider)
-      // No need to navigate - AuthContext will handle redirect via ProtectedRoute
     } catch (err) {
       setError(err.message)
     } finally {
@@ -31,22 +31,46 @@ export default function Login() {
   }
 
   return (
-    <div className="card">
-      <div>
-        <h2>Welcome to Travel Itinerary</h2>
-        <p>Plan shared trips with friends in one real-time itinerary.</p>
-        <p>Sign in with Google to create or join your trips.</p>
+    <PageShell variant="center" className="login-page-shell">
+      <div className="login-page">
+        <div className="login-page__inner">
+          <div className="login-page__copy">
+            <p className="ui-eyebrow login-page__eyebrow">Maps, stops &amp; split bills</p>
+            <h1 className="ui-display">
+              We&apos;re going
+              <br />
+              <span className="ui-display__accent">on an adventure!</span>
+            </h1>
+            <p className="ui-lead login-page__lead">
+              Lucky for you my travel book is awesome. Sign in with Google to start a trip or join with an invite code.
+            </p>
+          </div>
+
+          <Card className="login-page__card" padded>
+            <div className="login-page__actions">
+              {error ? (
+                <div className="ui-alert ui-alert--error" role="alert">
+                  {error}
+                </div>
+              ) : null}
+              <Button variant="google" block disabled={loading} onClick={handleGoogleSignIn}>
+                {loading ? 'Signing in…' : 'Continue with Google'}
+              </Button>
+            </div>
+          </Card>
+        </div>
+
+        <div className="login-page__art">
+          <img
+            className="login-page__art-img pixel-art"
+            src={landingHeroMap}
+            alt="Pixel art treasure map scroll with a dotted path, landmarks, and compass."
+            width={1024}
+            height={1024}
+            decoding="async"
+          />
+        </div>
       </div>
-      
-      {error && <div className="error">{error}</div>}
-      
-      <button 
-        onClick={handleGoogleSignIn} 
-        disabled={loading}
-        className="google-sign-in-button"
-      >
-        {loading ? 'Signing in...' : 'Sign in with Google'}
-      </button>
-    </div>
+    </PageShell>
   )
 }

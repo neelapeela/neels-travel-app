@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Elements removed from users.trips in this write (list may repeat if duplicates existed).
+    function removedTripIdsFromUserDoc() {
+      return resource.data.get('trips', []).removeAll(request.resource.data.get('trips', []));
+    }
+
+    // Trip creator may strip one logical trip id from someone else’s trips (delete trip / remove participant).
+    // Requires the trip doc to still exist so we can confirm creatorId (delete transaction updates users first).
+    function creatorRemovingSingleTripFromOtherUser(userId) {
+      return request.auth != null
+        && request.auth.uid != userId
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['trips'])
+        && removedTripIdsFromUserDoc().size() >= 1
+        && removedTripIdsFromUserDoc().toSet().size() == 1
+        && exists(/databases/$(database)/documents/trips/$(removedTripIdsFromUserDoc()[0]))
+        && get(/databases/$(database)/documents/trips/$(removedTripIdsFromUserDoc()[0])).data.creatorId
+          == request.auth.uid;
+    }
+
+    match /users/{userId} {
+      allow read, create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && (
+        request.auth.uid == userId
+        || creatorRemovingSingleTripFromOtherUser(userId)
+      );
+    }
+
+    match /trips/{tripId} {
+      allow read: if request.auth != null
+        && request.auth.uid in resource.data.participants;
+
+      allow create: if request.auth != null
+        && request.resource.data.creatorId == request.auth.uid
+        && request.auth.uid in request.resource.data.participants;
+
+      // Join: user ends up in participants. Members can edit the shared trip doc.
+      allow update: if request.auth != null
+        && request.auth.uid in request.resource.data.participants;
+
+      // Delete trip (creator only) — required for “Delete trip” in settings
+      allow delete: if request.auth != null
+        && resource.data.creatorId == request.auth.uid;
+    }
+
+    match /trip_invites/{code} {
+      allow read: if request.auth != null;
+
+      allow create: if request.auth != null
+        && request.resource.data.createdBy == request.auth.uid;
+
+      // Repair mapping (creator only, same trip)
+      allow update: if request.auth != null
+        && request.resource.data.tripId == resource.data.tripId
+        && exists(/databases/$(database)/documents/trips/$(resource.data.tripId))
+        && get(/databases/$(database)/documents/trips/$(resource.data.tripId)).data.creatorId == request.auth.uid;
+
+      // Remove invite when creator deletes trip (trip doc must still exist during this check)
+      allow delete: if request.auth != null
+        && resource.data.tripId is string
+        && exists(/databases/$(database)/documents/trips/$(resource.data.tripId))
+        && get(/databases/$(database)/documents/trips/$(resource.data.tripId)).data.creatorId == request.auth.uid;
+    }
+  }
+}

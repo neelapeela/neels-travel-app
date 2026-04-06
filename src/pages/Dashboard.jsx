@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { joinTripByCode, joinTripById, subscribeToUserTrips } from '../api/trip'
-import { BsPlusCircle } from 'react-icons/bs'
+import { BsPlusLg } from 'react-icons/bs'
 import CreateTripModal from '../components/CreateTripModal'
+import { Button, Card, Input, PageShell, TripListCard } from '../components/ui'
 import '../App.css'
 
 export default function Dashboard() {
@@ -33,17 +34,23 @@ export default function Dashboard() {
     const tripId = searchParams.get('tripId')
     if (!tripId) return
 
-    joinTripById(user.uid, tripId).catch((error) => {
+    joinTripById(user.uid, tripId, {
+      displayName: user.displayName,
+      email: user.email
+    }).catch((error) => {
       setJoinError(error.message || 'Unable to join trip from link')
     })
-  }, [searchParams, user?.uid])
+  }, [searchParams, user?.uid, user?.displayName, user?.email])
 
   const handleJoin = async () => {
     if (!user?.uid || !joinCode.trim()) return
     setJoinError('')
     setJoining(true)
     try {
-      const tripId = await joinTripByCode(user.uid, joinCode.trim())
+      const tripId = await joinTripByCode(user.uid, joinCode.trim(), {
+        displayName: user.displayName,
+        email: user.email
+      })
       setJoinCode('')
       navigate(`/trip/${tripId}`)
     } catch (error) {
@@ -53,51 +60,59 @@ export default function Dashboard() {
     }
   }
 
-  const handleCloseModal = () => {
-    setCreateTripModalOpen(false)
-  }
-
   return (
-    <div className="dashboard">
-      {createTripModalOpen && (
-        <CreateTripModal 
-          onClose={handleCloseModal}
-        />
-      )}
-      <div className="left-panel">
-        <button className="create-trip-button" onClick={() => setCreateTripModalOpen(true)}>
-          <BsPlusCircle size={48} />
-          <span>Create Trip</span>
-        </button>
-        <div className="join-trip-card">
-          <h3>Join with code</h3>
-          <input
-            type="text"
-            value={joinCode}
-            onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
-            placeholder="ABC123"
-          />
-          <button onClick={handleJoin} disabled={joining || !joinCode.trim()}>
-            {joining ? 'Joining...' : 'Join Trip'}
-          </button>
-          {joinError && <p className="join-error">{joinError}</p>}
-        </div>
-      </div>
-      <div className="right-panel">
-        <div className="trip-container-header">
-          <h2>Upcoming Trips</h2>
-        </div>
-        <div className="trip-list">
-          {trips.length === 0 && <p className="empty-state">No trips yet. Create one to get started.</p>}
-          {trips.map((trip) => (
-            <div className="trip-item" key={trip.id} onClick={() => navigate(`/trip/${trip.id}`)}>
-              <h3>{trip.name}</h3>
-              <p>{trip.destination}</p>
-              <p>{trip.startDate} - {trip.endDate}</p>
+    <PageShell variant="padded" className="dashboard-page-shell">
+      {createTripModalOpen && <CreateTripModal onClose={() => setCreateTripModalOpen(false)} />}
+
+      <div className="dashboard-layout">
+        <aside className="dashboard-sidebar">
+          <Card padded className="ui-card--bento-warm">
+            <p className="ui-section-title">Start</p>
+            <div className="dashboard-sidebar__actions">
+              <Button variant="primary" block onClick={() => setCreateTripModalOpen(true)}>
+                <BsPlusLg size={18} aria-hidden />
+                New trip
+              </Button>
             </div>
-          ))}
-        </div>
+          </Card>
+
+          <Card padded className="dashboard-join-card-surface">
+            <div className="dashboard-join-card">
+              <p className="ui-section-title dashboard-join-card__title">Join</p>
+              <Input
+                label="Invite code"
+                type="text"
+                value={joinCode}
+                onChange={(event) => setJoinCode(event.target.value.toUpperCase())}
+                placeholder="e.g. ABC123"
+                autoComplete="off"
+                wrapperClassName="dashboard-join-card__field"
+              />
+              <Button variant="secondary" block disabled={joining || !joinCode.trim()} onClick={handleJoin}>
+                {joining ? 'Joining…' : 'Join trip'}
+              </Button>
+              {joinError ? (
+                <p className="ui-alert ui-alert--error dashboard-join-card__alert" role="alert">
+                  {joinError}
+                </p>
+              ) : null}
+            </div>
+          </Card>
+        </aside>
+
+        <section className="dashboard-main">
+          <h2 className="ui-heading-2">Your trips</h2>
+          {trips.length === 0 ? (
+            <p className="dashboard-empty">No trips yet. Create one or join with a code from the left.</p>
+          ) : (
+            <div className="dashboard-trip-grid">
+              {trips.map((trip) => (
+                <TripListCard key={trip.id} trip={trip} onSelect={() => navigate(`/trip/${trip.id}`)} />
+              ))}
+            </div>
+          )}
+        </section>
       </div>
-    </div>
+    </PageShell>
   )
 }

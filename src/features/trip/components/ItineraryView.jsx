@@ -7,16 +7,6 @@ const formatHour = (hour) => {
   return `${hour12}:00 ${suffix}`
 }
 
-const formatExactTime = (timeValue, fallbackHour) => {
-  const value = typeof timeValue === 'string' && /^\d{2}:\d{2}$/.test(timeValue)
-    ? timeValue
-    : `${String(fallbackHour).padStart(2, '0')}:00`
-  const [hh, mm] = value.split(':').map(Number)
-  const suffix = hh >= 12 ? 'PM' : 'AM'
-  const hour12 = hh % 12 === 0 ? 12 : hh % 12
-  return `${hour12}:${String(mm).padStart(2, '0')} ${suffix}`
-}
-
 export default function ItineraryView({
   stops,
   selectedStopId,
@@ -44,7 +34,8 @@ export default function ItineraryView({
   return (
     <div className="itinerary-view">
       <div className="itinerary-header">
-        <h3>Day Timeline</h3>
+        <h3 className="itinerary-header__title">Day timeline</h3>
+        <p className="itinerary-header__hint">Tap a time to add a stop · drag stops between hours</p>
       </div>
       <div className="timeline">
         {grouped.map((slot) => (
@@ -74,7 +65,7 @@ export default function ItineraryView({
                   }}
                   onClick={() => onSelectStop(stop.id)}
                 >
-                  {formatExactTime(stop.stopTime, slot.hour)} - {stop.title}
+                  {stop.title}
                 </button>
               ))}
             </div>

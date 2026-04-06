@@ -1,11 +1,11 @@
+@import './styles/tokens.css';
+
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
+  font-family: var(--font-ui);
+  line-height: 1.55;
   font-weight: 400;
-
-  color: #213547;
-  background-color: #ffffff;
-
+  color: var(--color-ink);
+  background-color: var(--color-bg-page);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -14,11 +14,11 @@
 
 a {
   font-weight: 500;
-  color: #646cff;
+  color: var(--color-accent);
   text-decoration: inherit;
 }
 a:hover {
-  color: #535bf2;
+  color: var(--color-accent-hover);
 }
 
 html, body {
@@ -34,26 +34,19 @@ body {
   /* Do not flex-center the root: it breaks full-viewport app layout and can leave blank “white” bands */
 }
 
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
-}
-
+/* Unstyled button baseline — components (e.g. .ui-btn, .trip-tool-button) supply full chrome */
 button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
   font-family: inherit;
-  background-color: #f9f9f9;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: none;
   cursor: pointer;
-  transition: border-color 0.25s;
 }
-button:hover {
-  border-color: #646cff;
+button:disabled {
+  cursor: not-allowed;
 }
-button:focus,
 button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
 }

@@ -41,18 +41,17 @@ All top-level routes are defined in **`src/App.jsx`**. The structure looks like 
 ```
 BrowserRouter
   └── AuthProvider
-        └── ChakraProvider
-              └── Routes
-                    └── Route path="/" element={<Layout />}
-                          ├── index          → redirect to /login
-                          ├── login          → <Login />
-                          ├── dashboard      → <ProtectedRoute><Dashboard /></ProtectedRoute>
-                          ├── *              → redirect to /login (catch-all)
-                          └── trip/:tripId   → <ProtectedRoute><Trip /></ProtectedRoute>
+        └── Routes
+              └── Route path="/" element={<Layout />}
+                    ├── index          → redirect to /login
+                    ├── login          → <Login />
+                    ├── dashboard      → <ProtectedRoute><Dashboard /></ProtectedRoute>
+                    ├── *              → redirect to /login (catch-all)
+                    └── trip/:tripId   → <ProtectedRoute><Trip /></ProtectedRoute>
 ```
 
 - **BrowserRouter** enables URL-based routing for the whole app.
-- **AuthProvider** and **ChakraProvider** wrap the app for auth and UI; they don’t define routes.
+- **AuthProvider** wraps the app for auth; it doesn’t define routes.
 - The **single** `<Route path="/" element={<Layout />}>` means: “For any path that starts with `/`, use `Layout` as the **parent**.” All other routes are **nested** inside it.
 - **Layout** uses an **Outlet** (see below) to render the **child** that matches the current URL.
 
@@ -70,11 +69,15 @@ So:
 
 ## 4. Layout and nested routes: `Layout.jsx`
 
-**`src/components/Layout.jsx`** is the shared “shell” of the app: header, title, profile menu. The **page content** (Login, Dashboard, or Trip) is not defined in Layout; it’s whatever the router chooses as the **child** route. That child is rendered in the **Outlet**:
+**`src/components/Layout.jsx`** is the shared “shell” of the app: header, title, profile menu. The **page content** (Login, Dashboard, or Trip) is not defined in Layout; it’s whatever the router chooses as the **child** route. That child is rendered in the **Outlet**, wrapped in an **ErrorBoundary** so a render error in one route doesn’t blank the whole shell:
 
 ```jsx
-<main>
-  <Outlet />
+<main className="app-main">
+  <div className="app-main-outlet">
+    <ErrorBoundary>
+      <Outlet />
+    </ErrorBoundary>
+  </div>
 </main>
 ```
 
