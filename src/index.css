@@ -21,11 +21,15 @@ a:hover {
   color: var(--color-accent-hover);
 }
 
-html, body {
+html,
+body {
   margin: 0;
   padding: 0;
   width: 100%;
   height: 100%;
+  /* Match dynamic viewport on iOS so %-height children don’t overshoot the visible band */
+  min-height: 100vh;
+  min-height: 100dvh;
   overflow: hidden;
 }
 

@@ -1,5 +1,7 @@
-import { forwardRef } from 'react'
+import { forwardRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { formatStopTime } from '../../../utils/stopTime'
+import { useMobileStopModal } from '../../../hooks/useStopSheetHeight'
 
 const StopViewSheet = forwardRef(function StopViewSheet(
   {
@@ -17,13 +19,42 @@ const StopViewSheet = forwardRef(function StopViewSheet(
   },
   ref
 ) {
-  return (
-    <div
-      ref={ref}
-      className="stop-view-sheet stop-view-sheet--map-overlay"
-      role="dialog"
-      aria-label="Stop details"
-    >
+  const isMobileModal = useMobileStopModal()
+
+  useEffect(() => {
+    if (!isMobileModal || !selectedStop) return undefined
+    const onKey = (e) => {
+      if (e.key === 'Escape') onClose()
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [isMobileModal, selectedStop, onClose])
+
+  useEffect(() => {
+    if (!isMobileModal || !selectedStop) return undefined
+    const prev = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = prev
+    }
+  }, [isMobileModal, selectedStop])
+
+  const shell = (
+    <div className="stop-view-sheet-shell">
+      <button
+        type="button"
+        className="stop-view-sheet__backdrop"
+        onClick={onClose}
+        tabIndex={-1}
+        aria-label="Close stop details"
+      />
+      <div
+        ref={ref}
+        className={`stop-view-sheet stop-view-sheet--map-overlay${isMobileModal ? ' stop-view-sheet--mobile-modal' : ''}`}
+        role="dialog"
+        aria-modal={isMobileModal ? true : undefined}
+        aria-label="Stop details"
+      >
       <div className="stop-view-actions">
         <div className="stop-view-actions-primary">
           {!isEditingStop && (
@@ -104,8 +135,15 @@ const StopViewSheet = forwardRef(function StopViewSheet(
           <textarea id="stop-notes-edit" name="notes" rows={4} value={stopForm.notes} onChange={onStopFormChange} />
         </div>
       )}
+      </div>
     </div>
   )
+
+  /* Portal avoids overflow:hidden on .trip-map-column / .trip-map-stack clipping fixed overlays. */
+  if (isMobileModal) {
+    return createPortal(shell, document.body)
+  }
+  return shell
 })
 
 export default StopViewSheet

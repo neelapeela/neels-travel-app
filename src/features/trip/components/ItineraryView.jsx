@@ -1,3 +1,5 @@
+import { useEffect, useState } from 'react'
+
 const hours = Array.from({ length: 24 }, (_, index) => index)
 
 const formatHour = (hour) => {
@@ -14,6 +16,16 @@ export default function ItineraryView({
   onMoveStop,
   onTimestampClick
 }) {
+  /** HTML5 drag fights horizontal touch scrolling on phones; keep drag for mouse / fine pointer only. */
+  const [allowDragReorder, setAllowDragReorder] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(pointer: fine)')
+    const sync = () => setAllowDragReorder(mq.matches)
+    sync()
+    mq.addEventListener('change', sync)
+    return () => mq.removeEventListener('change', sync)
+  }, [])
+
   const handleTimestampClick = onTimestampClick || (() => {})
   const handleDrop = (event, hour) => {
     event.preventDefault()
@@ -58,7 +70,7 @@ export default function ItineraryView({
                   type="button"
                   key={stop.id}
                   className={`timeline-stop ${selectedStopId === stop.id ? 'active' : ''}`}
-                  draggable
+                  draggable={allowDragReorder}
                   onDragStart={(event) => {
                     event.dataTransfer.setData('text/plain', stop.id)
                     event.dataTransfer.effectAllowed = 'move'

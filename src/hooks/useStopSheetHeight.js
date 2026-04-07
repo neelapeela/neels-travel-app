@@ -1,9 +1,29 @@
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+
+/** Stop details use a centered modal on small viewports — no map “band” inset. */
+const MOBILE_MODAL_MQ = '(max-width: 768px)'
 
 /** Matches `.stop-view-sheet { max-height: min(42vh, 360px) }` when geometry is unreliable. */
 function sheetMaxHeightFallbackPx() {
   if (typeof window === 'undefined') return 320
   return Math.min(Math.round(window.innerHeight * 0.42), 360)
+}
+
+/** Same breakpoint as trip mobile layout — stop details render as a centered modal. */
+export function useMobileStopModal() {
+  const [isMobile, setIsMobile] = useState(() =>
+    typeof window !== 'undefined' ? window.matchMedia(MOBILE_MODAL_MQ).matches : false
+  )
+
+  useEffect(() => {
+    const mq = window.matchMedia(MOBILE_MODAL_MQ)
+    const onChange = () => setIsMobile(mq.matches)
+    onChange()
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
+
+  return isMobile
 }
 
 /**
@@ -16,11 +36,18 @@ export function useStopSheetHeight(mapPaneRef, selectedStop, isEditingStop) {
   const [stopSheetHeight, setStopSheetHeight] = useState(0)
   const [mapBottomInsetPx, setMapBottomInsetPx] = useState(0)
   const rafRef = useRef(null)
+  const isMobileStopModal = useMobileStopModal()
 
   useLayoutEffect(() => {
     const sheet = stopSheetRef.current
     const pane = mapPaneRef?.current
     if (!sheet || !selectedStop) {
+      setStopSheetHeight(0)
+      setMapBottomInsetPx(0)
+      return undefined
+    }
+
+    if (isMobileStopModal) {
       setStopSheetHeight(0)
       setMapBottomInsetPx(0)
       return undefined
@@ -72,7 +99,7 @@ export function useStopSheetHeight(mapPaneRef, selectedStop, isEditingStop) {
       ro.disconnect()
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
     }
-  }, [mapPaneRef, selectedStop, isEditingStop])
+  }, [mapPaneRef, selectedStop, isEditingStop, isMobileStopModal])
 
   return { stopSheetRef, stopSheetHeight, mapBottomInsetPx }
 }

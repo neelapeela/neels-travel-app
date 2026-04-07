@@ -10,7 +10,7 @@ import {
   straightLinePositions
 } from '../../../utils/osrmRoute'
 import '../trip.css'
-import { OSRM_FETCH_DEBOUNCE_MS } from '../constants'
+import { MAP_TILE_ATTRIBUTION, MAP_TILE_URL, OSRM_FETCH_DEBOUNCE_MS } from '../constants'
 
 // Fix for default marker icons
 delete L.Icon.Default.prototype._getIconUrl
@@ -312,7 +312,7 @@ export default function MapView({ coordinates, shouldResizeMap, stops, focusStop
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
       >
-        <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
+        <TileLayer attribution={MAP_TILE_ATTRIBUTION} url={MAP_TILE_URL} />
         {routeToDraw.length > 1 && (
           <Polyline
             key={polylineKey}
