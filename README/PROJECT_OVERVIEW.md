@@ -149,7 +149,7 @@
 - `src/features/trip/components/ItineraryView.jsx`
   - hourly timeline list
   - stacked stops for same hour
-  - rendered inside the slide-in time panel, which scrolls as one column (`overflow-y: auto`) with a sticky date nav; **narrow layouts** use a **horizontally scrollable** stop strip (`touch-action` on `.time-panel-scroll` is **`pan-x pan-y`** so nested horizontal scroll isn’t starved; **HTML5 `draggable`** is enabled only when **`(pointer: fine)`** so touch isn’t competing with drag)
+  - rendered inside the slide-in time panel, which scrolls as one column (`overflow-y: auto`) with a sticky date nav; **narrow layouts** use a **horizontally scrollable** stop strip (`overflow-x: scroll`, **`touch-action: manipulation`** on the vertical `.time-panel-scroll` and on pills — iOS handles nested scroll better than `pan-x`-only; strip uses **`touch-action: auto`** + compositor hint); **HTML5 `draggable`** stays **`(pointer: fine)`** only — native touch DnD is unreliable on iOS
 
 ## Architectural trade-offs
 

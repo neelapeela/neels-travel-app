@@ -674,6 +674,11 @@
     padding: var(--space-sm) var(--space-sm);
   }
 
+  /* Narrow screens: single `manipulation` matches iOS better than `pan-x pan-y` for nested scrollers */
+  .time-panel-scroll {
+    touch-action: manipulation;
+  }
+
   .trip-island {
     left: var(--space-sm);
     bottom: max(var(--space-sm), env(safe-area-inset-bottom, 0px));
@@ -688,25 +693,33 @@
   .timeline-label,
   .timeline-label-button {
     flex-shrink: 0;
+    touch-action: manipulation;
   }
 
   .timeline-stops {
     flex: 1 1 auto;
     min-width: 0;
     flex-wrap: nowrap;
-    overflow-x: auto;
+    align-items: center;
+    /* `overflow-x: scroll` keeps a stable scroll layer on iOS; `auto` can defer creation. */
+    overflow-x: scroll;
     overflow-y: hidden;
     overscroll-behavior-x: contain;
     overscroll-behavior-y: auto;
-    touch-action: pan-x;
+    /* Let the browser assign panning (don’t lock to pan-x only — fights diagonal starts on pills). */
+    touch-action: auto;
     scrollbar-width: thin;
-    padding-bottom: 0.2rem;
+    padding: 0.35rem 0;
     -webkit-overflow-scrolling: touch;
+    user-select: none;
+    -webkit-user-select: none;
+    /* Promote compositing — smoother horizontal tracking on iOS */
+    transform: translateZ(0);
   }
 
-  /* Pills: avoid iOS treating the first touch as HTML5 drag start instead of scrolling the strip */
+  /* Pills: `manipulation` = pan + pinch, no double-tap zoom wait; works better than pan-x-only inside a scroller */
   .timeline-stop {
-    touch-action: pan-x;
+    touch-action: manipulation;
   }
 
   /* Stop details: centered modal over dimmed map/timeline (not a bottom sheet). */
