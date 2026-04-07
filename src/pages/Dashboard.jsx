@@ -37,10 +37,12 @@ export default function Dashboard() {
     joinTripById(user.uid, tripId, {
       displayName: user.displayName,
       email: user.email
-    }).catch((error) => {
-      setJoinError(error.message || 'Unable to join trip from link')
     })
-  }, [searchParams, user?.uid, user?.displayName, user?.email])
+      .then(() => navigate(`/trip/${tripId}`, { replace: true }))
+      .catch((error) => {
+        setJoinError(error.message || 'Unable to join trip from link')
+      })
+  }, [navigate, searchParams, user?.uid, user?.displayName, user?.email])
 
   const handleJoin = async () => {
     if (!user?.uid || !joinCode.trim()) return

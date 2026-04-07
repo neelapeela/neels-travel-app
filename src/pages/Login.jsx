@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Navigate } from 'react-router-dom'
+import { Navigate, useLocation } from 'react-router-dom'
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth'
 import { auth } from '../api/firebase'
 import { useAuth } from '../context/AuthContext'
@@ -9,11 +9,17 @@ import '../App.css'
 
 export default function Login() {
   const { user } = useAuth()
+  const location = useLocation()
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
   if (user) {
-    return <Navigate to="/dashboard" replace />
+    const from = location.state?.from
+    const target =
+      from && typeof from.pathname === 'string'
+        ? `${from.pathname}${from.search || ''}`
+        : '/dashboard'
+    return <Navigate to={target} replace />
   }
 
   const handleGoogleSignIn = async () => {

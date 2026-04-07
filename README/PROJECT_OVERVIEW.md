@@ -16,7 +16,7 @@
 4. User can:
    - create a trip from the create modal
    - join an existing trip by invite code
-   - open an invite link (`/dashboard?tripId=<id>`) which auto-joins
+   - open an invite link (`/dashboard?tripId=<id>`) which auto-joins after sign-in: unauthenticated visitors are sent to `/login` with **router state** preserving the full URL (`pathname` + `search`), and after Google sign-in **Login** sends them back to that URL (not a bare `/dashboard`), so `tripId` is not lost on production or local.
 5. Clicking a trip opens `/trip/:tripId`.
 6. Trip view shows:
    - top toolbar (add stop on left, centered date + editable day title, share + time controls on right)
