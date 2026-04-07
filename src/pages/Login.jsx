@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
-import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth'
+import { GoogleAuthProvider, signInWithPopup, signInWithRedirect } from 'firebase/auth'
 import { auth } from '../api/firebase'
 import { useAuth } from '../context/AuthContext'
+import { formatAuthErrorForUser, shouldFallbackSignInToRedirect } from '../utils/authSignIn'
 import { Button, Card, PageShell } from '../components/ui'
 import landingHeroMap from '../illustrations/landing-hero-map.png'
 import '../App.css'
@@ -28,9 +29,17 @@ export default function Login() {
 
     try {
       const provider = new GoogleAuthProvider()
-      await signInWithPopup(auth, provider)
+      try {
+        await signInWithPopup(auth, provider)
+      } catch (popupErr) {
+        if (shouldFallbackSignInToRedirect(popupErr)) {
+          await signInWithRedirect(auth, provider)
+          return
+        }
+        throw popupErr
+      }
     } catch (err) {
-      setError(err.message)
+      setError(formatAuthErrorForUser(err))
     } finally {
       setLoading(false)
     }

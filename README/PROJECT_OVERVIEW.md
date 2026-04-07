@@ -10,7 +10,7 @@
 
 ## Core user flow
 
-1. User lands on `/login` and signs in with Google.
+1. User lands on `/login` and signs in with Google (**popup** by default; **full-page redirect** if the browser blocks popups or does not support the popup flow—see `getRedirectResult` in `AuthContext` and `signInWithRedirect` fallback in `Login`). Storage-partitioned environments (some in-app browsers, strict privacy) can trigger Firebase’s “missing initial state” error; the app treats benign redirect recovery errors quietly and shows a clearer message when sign-in still fails.
 2. User is redirected to `/dashboard`.
 3. Dashboard shows all trips linked to the user.
 4. User can:

@@ -1,7 +1,8 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth'
+import { getRedirectResult, onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth'
 import { auth } from '../api/firebase'
 import { syncUserWithFirestore } from '../api/user'
+import { isBenignRedirectRecoveryError } from '../utils/authSignIn'
 
 const AuthContext = createContext(undefined)
 
@@ -18,18 +19,35 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
-      setUser(currentUser)
-      try {
-        await syncUserWithFirestore(currentUser)
-      } catch (error) {
-        console.error('Auth bootstrap failed:', error)
-      } finally {
-        setLoading(false)
-      }
-    })
+    let cancelled = false
+    let unsubscribe = () => {}
 
-    return () => unsubscribe()
+    ;(async () => {
+      try {
+        await getRedirectResult(auth)
+      } catch (error) {
+        if (!isBenignRedirectRecoveryError(error)) {
+          console.error('getRedirectResult failed:', error)
+        }
+      }
+      if (cancelled) return
+
+      unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+        setUser(currentUser)
+        try {
+          await syncUserWithFirestore(currentUser)
+        } catch (error) {
+          console.error('Auth bootstrap failed:', error)
+        } finally {
+          setLoading(false)
+        }
+      })
+    })()
+
+    return () => {
+      cancelled = true
+      unsubscribe()
+    }
   }, [])
 
   const signOut = async () => {
