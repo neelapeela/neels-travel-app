@@ -14,6 +14,9 @@ export const MAP_TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyag
 export const MAP_TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
 
+/** Never leave the map pane blank while destination geocoding is pending/fails. */
+export const MAP_FALLBACK_CENTER = { lat: 37.7749, lng: -122.4194 }
+
 /** Stacked map ↔ timeline split (mobile); persisted height for the map band */
 export const TRIP_MAP_BAND_STORAGE_KEY = 'tripMapBandHeightPx'
 export const TRIP_TIMELINE_SPLIT_HANDLE_PX = 12
