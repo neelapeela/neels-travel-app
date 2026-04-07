@@ -26,6 +26,7 @@ import { buildParticipantLabel } from '../../utils/participantLabels'
 import { useTripDocument } from '../../hooks/useTripDocument'
 import { useDestinationCoordinates } from '../../hooks/useDestinationCoordinates'
 import { useStopSheetHeight } from '../../hooks/useStopSheetHeight'
+import { useTripTimelineResize } from '../../hooks/useTripTimelineResize'
 import { useTripPaymentAnalytics } from '../../hooks/useTripPaymentAnalytics'
 import { useTripSpecialStopGroups } from '../../hooks/useTripSpecialStopGroups'
 import { useTripDaySelection } from './hooks/useTripDaySelection'
@@ -112,6 +113,15 @@ export default function TripPage() {
     selectedStop,
     isEditingStop
   )
+  const {
+    mapColumnRef,
+    contentRef: tripContentRef,
+    mapColumnStyle,
+    showHandle: showTimelineSplitHandle,
+    mapBandPx: timelineMapBandPx,
+    resizeHandleProps,
+    splitDragging: timelineSplitDragging
+  } = useTripTimelineResize(showTimePanel)
   const { addedFlights, addedLodgings } = useTripSpecialStopGroups(trip?.itinerary)
   const { allPayments, paymentTotals, paymentOverviewVsYou } = useTripPaymentAnalytics(trip, user?.uid)
 
@@ -600,15 +610,17 @@ export default function TripPage() {
       />
 
       <div
+        ref={tripContentRef}
         className={`trip-page-content${showTimePanel ? ' trip-page-content--with-timeline' : ''}`}
       >
-        <div className="trip-map-column">
+        <div ref={mapColumnRef} className="trip-map-column" style={mapColumnStyle}>
           <div className="trip-map-stack">
             <div className="trip-map-pane" ref={tripMapPaneRef}>
               {coordinates && (
                 <MapView
                   coordinates={coordinates}
                   shouldResizeMap={showTimePanel || Boolean(selectedStop)}
+                  layoutResizeKey={timelineMapBandPx}
                   stops={mapStopsForSelectedDate}
                   focusStop={selectedStop}
                   focusBottomPaddingPx={selectedStop ? mapBottomInsetPx : 0}
@@ -644,6 +656,18 @@ export default function TripPage() {
             />
           </div>
         </div>
+        {showTimePanel && showTimelineSplitHandle && (
+          <button
+            {...resizeHandleProps}
+            className={`trip-timeline-split-handle${timelineSplitDragging ? ' trip-timeline-split-handle--dragging' : ''}`}
+            aria-label="Drag to resize map and timeline height"
+            aria-orientation="horizontal"
+            aria-valuemin={132}
+            aria-valuemax={560}
+            aria-valuenow={timelineMapBandPx ?? undefined}
+            aria-grabbed={timelineSplitDragging}
+          />
+        )}
         {showTimePanel && (
           <div className="trip-right-column">
             <div className="time-panel">

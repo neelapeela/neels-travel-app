@@ -13,3 +13,11 @@ export const MAP_TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyag
 
 export const MAP_TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+
+/** Stacked map ↔ timeline split (mobile); persisted height for the map band */
+export const TRIP_MAP_BAND_STORAGE_KEY = 'tripMapBandHeightPx'
+export const TRIP_TIMELINE_SPLIT_HANDLE_PX = 12
+export const TRIP_MAP_BAND_MIN_PX = 132
+export const TRIP_TIMELINE_MIN_PX = 140
+/** Same breakpoint as `trip.css` mobile timeline rules */
+export const TRIP_TIMELINE_SPLIT_MQ = '(max-width: 768px)'

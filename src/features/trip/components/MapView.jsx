@@ -20,11 +20,11 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
 })
 
-function ResizeHandler({ shouldResizeMap }) {
+function ResizeHandler({ shouldResizeMap, layoutResizeKey }) {
   const map = useMap()
   useEffect(() => {
     map.invalidateSize()
-  }, [map, shouldResizeMap])
+  }, [map, shouldResizeMap, layoutResizeKey])
   return null
 }
 
@@ -211,7 +211,14 @@ const createLodgingHomeIcon = () =>
     iconAnchor: [14, 14]
   })
 
-export default function MapView({ coordinates, shouldResizeMap, stops, focusStop, focusBottomPaddingPx = 0 }) {
+export default function MapView({
+  coordinates,
+  shouldResizeMap,
+  layoutResizeKey,
+  stops,
+  focusStop,
+  focusBottomPaddingPx = 0
+}) {
   const [routePoints, setRoutePoints] = useState([])
   const sortedStopsRef = useRef([])
   const routeStopsKeyRef = useRef('')
@@ -342,7 +349,7 @@ export default function MapView({ coordinates, shouldResizeMap, stops, focusStop
           </Marker>
         ))}
         <FlyToSelectedStop focusStop={focusStop} focusBottomPaddingPx={focusBottomPaddingPx} />
-        <ResizeHandler shouldResizeMap={shouldResizeMap} />
+        <ResizeHandler shouldResizeMap={shouldResizeMap} layoutResizeKey={layoutResizeKey} />
       </MapContainer>
     </div>
   )

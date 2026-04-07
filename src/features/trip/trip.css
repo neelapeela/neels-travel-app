@@ -684,6 +684,54 @@
     bottom: max(var(--space-sm), env(safe-area-inset-bottom, 0px));
   }
 
+  /* Drag handle between stacked map and timeline (see `useTripTimelineResize`). */
+  .trip-timeline-split-handle {
+    flex: 0 0 auto;
+    width: 100%;
+    height: var(--trip-split-handle-h, 12px);
+    padding: 0;
+    margin: 0;
+    border: none;
+    cursor: ns-resize;
+    touch-action: none;
+    background: transparent;
+    position: relative;
+    z-index: 2;
+    display: block;
+    box-sizing: border-box;
+    border-radius: var(--radius-sm);
+  }
+
+  .trip-timeline-split-handle::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    width: 2.75rem;
+    height: 5px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--palette-terra-cotta) 45%, var(--trip-timeline-rim) 55%);
+    opacity: 0.88;
+    pointer-events: none;
+    box-shadow: 0 1px 2px rgba(31, 53, 50, 0.12);
+  }
+
+  .trip-timeline-split-handle:hover::before,
+  .trip-timeline-split-handle:focus-visible::before {
+    opacity: 1;
+    background: color-mix(in srgb, var(--palette-terra-cotta) 72%, var(--trip-timeline-rim) 28%);
+  }
+
+  .trip-timeline-split-handle:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--trip-timeline-strip-bg), 0 0 0 4px var(--color-accent-3);
+  }
+
+  .trip-timeline-split-handle--dragging {
+    opacity: 1;
+  }
+
   .timeline-row {
     flex-wrap: nowrap;
     align-items: center;
