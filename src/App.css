@@ -237,19 +237,29 @@ form input:focus,
 }
 
 .modal-close-button {
-  background: none;
-  border: none;
+  background: color-mix(in srgb, var(--color-input-bg) 78%, transparent);
+  border: 1px solid var(--color-border);
   cursor: pointer;
-  padding: 0.25rem;
+  width: 2.45rem;
+  height: 2.45rem;
+  padding: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   color: var(--color-ink-muted);
-  transition: color 0.2s;
+  border-radius: 999px;
+  font-size: 1.45rem;
+  line-height: 1;
+  transition:
+    color 0.2s,
+    background-color 0.2s,
+    border-color 0.2s;
 }
 
 .modal-close-button:hover {
   color: var(--color-ink);
+  background: var(--color-input-bg);
+  border-color: var(--color-border-strong);
 }
 
 .modal-form {

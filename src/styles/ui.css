@@ -630,6 +630,24 @@
   text-overflow: ellipsis;
 }
 
+.app-header__brand-button {
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.app-header__brand-button:hover {
+  color: color-mix(in srgb, var(--color-ink) 82%, var(--palette-sand) 18%);
+}
+
+.app-header__brand-button:focus-visible {
+  outline: none;
+  border-radius: var(--radius-sm);
+  box-shadow: 0 0 0 2px var(--app-chrome-bg), 0 0 0 4px var(--color-accent-3);
+}
+
 /* Use on <img> for 16-bit assets — keeps pixels crisp */
 .pixel-art {
   image-rendering: pixelated;

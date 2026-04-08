@@ -3,12 +3,6 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 /** Stop details use a centered modal on small viewports — no map “band” inset. */
 const MOBILE_MODAL_MQ = '(max-width: 768px)'
 
-/** Matches `.stop-view-sheet { max-height: min(42vh, 360px) }` when geometry is unreliable. */
-function sheetMaxHeightFallbackPx() {
-  if (typeof window === 'undefined') return 320
-  return Math.min(Math.round(window.innerHeight * 0.42), 360)
-}
-
 /** Same breakpoint as trip mobile layout — stop details render as a centered modal. */
 export function useMobileStopModal() {
   const [isMobile, setIsMobile] = useState(() =>
@@ -27,14 +21,13 @@ export function useMobileStopModal() {
 }
 
 /**
- * Measures the stop sheet for UI (island offset) and the overlap between the sheet and the map pane
- * for map centering. Overlap is the correct “bottom padding” for the visible map band; raw sheet height
- * can exceed the map or read as 0 while the slide-up animation runs.
+ * Measures the stop sheet for UI (island offset) and map overlap for map centering.
+ * With desktop floating card, we care about horizontal overlap (left inset).
  */
 export function useStopSheetHeight(mapPaneRef, selectedStop, isEditingStop) {
   const stopSheetRef = useRef(null)
   const [stopSheetHeight, setStopSheetHeight] = useState(0)
-  const [mapBottomInsetPx, setMapBottomInsetPx] = useState(0)
+  const [mapLeftInsetPx, setMapLeftInsetPx] = useState(0)
   const rafRef = useRef(null)
   const isMobileStopModal = useMobileStopModal()
 
@@ -43,13 +36,13 @@ export function useStopSheetHeight(mapPaneRef, selectedStop, isEditingStop) {
     const pane = mapPaneRef?.current
     if (!sheet || !selectedStop) {
       setStopSheetHeight(0)
-      setMapBottomInsetPx(0)
+      setMapLeftInsetPx(0)
       return undefined
     }
 
     if (isMobileStopModal) {
       setStopSheetHeight(0)
-      setMapBottomInsetPx(0)
+      setMapLeftInsetPx(0)
       return undefined
     }
 
@@ -60,24 +53,28 @@ export function useStopSheetHeight(mapPaneRef, selectedStop, isEditingStop) {
       let inset = 0
       if (pane) {
         const mapRect = pane.getBoundingClientRect()
-        const top = Math.max(mapRect.top, sheetRect.top)
-        const bottom = Math.min(mapRect.bottom, sheetRect.bottom)
-        inset = Math.max(0, Math.round(bottom - top))
+        const left = Math.max(mapRect.left, sheetRect.left)
+        const right = Math.min(mapRect.right, sheetRect.right)
+        inset = Math.max(0, Math.round(right - left))
       }
 
-      const fallback = sheetMaxHeightFallbackPx()
+      const fallback = Math.min(Math.round(window.innerWidth * 0.52), 360)
       if (inset === 0 && fullH > 16) {
-        inset = Math.min(fallback, fullH)
+        // fallback width for floating card when overlap reads 0 during animation frames
+        inset = fallback
       } else if (inset === 0) {
         inset = pane
-          ? Math.min(fallback, Math.round(pane.getBoundingClientRect().height * 0.42))
+          ? Math.min(fallback, Math.round(pane.getBoundingClientRect().width * 0.56))
           : fallback
       }
-      // Do not cap overlap vs map height — a tall sheet on a short map can cover >58% of the pane;
-      // capping made `mapBottomInsetPx` too small so the pin stayed visually low behind the overlay.
+      // Keep horizontal inset bounded so markers don't get pushed too far right.
+      if (pane) {
+        const paneW = pane.getBoundingClientRect().width
+        inset = Math.min(inset, Math.round(paneW * 0.7))
+      }
 
       setStopSheetHeight((prev) => (prev === fullH ? prev : fullH))
-      setMapBottomInsetPx((prev) => (prev === inset ? prev : inset))
+      setMapLeftInsetPx((prev) => (prev === inset ? prev : inset))
     }
 
     measureAndSet()
@@ -101,5 +98,5 @@ export function useStopSheetHeight(mapPaneRef, selectedStop, isEditingStop) {
     }
   }, [mapPaneRef, selectedStop, isEditingStop, isMobileStopModal])
 
-  return { stopSheetRef, stopSheetHeight, mapBottomInsetPx }
+  return { stopSheetRef, stopSheetHeight, mapLeftInsetPx }
 }

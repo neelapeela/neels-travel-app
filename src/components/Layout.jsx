@@ -42,7 +42,14 @@ export default function Layout() {
     <div className="app">
       <header className="app-header">
         <div className="app-header__start">
-          <h1 className="app-header__brand">Neel&apos;s Travel Book</h1>
+          <button
+            type="button"
+            className="app-header__brand app-header__brand-button"
+            onClick={() => navigate('/dashboard')}
+            aria-label="Go to dashboard"
+          >
+            Neel&apos;s Travel Book
+          </button>
         </div>
         <div className="app-header__end">
           <div className="profile-menu" ref={menuRef}>

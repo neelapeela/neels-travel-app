@@ -13,7 +13,7 @@ export default function FlightsModal({
   createDisabled
 }) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay trip-modal-overlay" onClick={onClose}>
       <div className="modal-content flights-modal-content" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <h2>Flights</h2>

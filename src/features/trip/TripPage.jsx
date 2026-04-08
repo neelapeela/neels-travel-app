@@ -108,7 +108,7 @@ export default function TripPage() {
   } = useTripDaySelection(trip, selectedDate, selectedStopId, setSelectedDate, setSelectedStopId)
 
   const tripMapPaneRef = useRef(null)
-  const { stopSheetRef, stopSheetHeight, mapBottomInsetPx } = useStopSheetHeight(
+  const { stopSheetRef, stopSheetHeight, mapLeftInsetPx } = useStopSheetHeight(
     tripMapPaneRef,
     selectedStop,
     isEditingStop
@@ -607,6 +607,23 @@ export default function TripPage() {
         onCopyShareCode={handleCopyShareCode}
         onCopyShareLink={handleCopyShareLink}
         setShowTimePanel={setShowTimePanel}
+        settingsPopover={
+          showSettingsModal ? (
+            <TripSettingsPopover
+              tripNotesDraft={tripNotesDraft}
+              onTripNotesDraftChange={setTripNotesDraft}
+              onSaveTripSettings={handleSaveTripSettings}
+              onClose={() => setShowSettingsModal(false)}
+              participants={trip?.participants}
+              participantNames={trip?.participantNames || {}}
+              currentUserId={user?.uid}
+              creatorId={trip?.creatorId}
+              canManageSharing={canManageSharing}
+              onRemoveParticipant={handleRemoveParticipant}
+              onDeleteTrip={canManageSharing ? handleDeleteTrip : undefined}
+            />
+          ) : null
+        }
       />
 
       <div
@@ -623,7 +640,8 @@ export default function TripPage() {
                   layoutResizeKey={timelineMapBandPx}
                   stops={mapStopsForSelectedDate}
                   focusStop={selectedStop}
-                  focusBottomPaddingPx={selectedStop ? mapBottomInsetPx : 0}
+                  focusLeftPaddingPx={selectedStop ? mapLeftInsetPx : 0}
+                  fitViewKey={selectedDate || ''}
                 />
               )}
             </div>
@@ -705,22 +723,6 @@ export default function TripPage() {
           </div>
         )}
       </div>
-
-      {showSettingsModal && (
-        <TripSettingsPopover
-          tripNotesDraft={tripNotesDraft}
-          onTripNotesDraftChange={setTripNotesDraft}
-          onSaveTripSettings={handleSaveTripSettings}
-          onClose={() => setShowSettingsModal(false)}
-          participants={trip?.participants}
-          participantNames={trip?.participantNames || {}}
-          currentUserId={user?.uid}
-          creatorId={trip?.creatorId}
-          canManageSharing={canManageSharing}
-          onRemoveParticipant={handleRemoveParticipant}
-          onDeleteTrip={canManageSharing ? handleDeleteTrip : undefined}
-        />
-      )}
 
       {showFlightsModal && (
         <FlightsModal

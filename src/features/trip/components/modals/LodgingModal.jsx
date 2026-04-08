@@ -8,7 +8,7 @@ export default function LodgingModal({
   addDisabled
 }) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay trip-modal-overlay" onClick={onClose}>
       <div className="modal-content lodging-modal-content" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
           <h2>Lodging</h2>

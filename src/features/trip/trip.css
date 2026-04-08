@@ -169,16 +169,16 @@
 
 /* Toolbar only: “Add stop” = terra → clay (dashboard Start accent) */
 .trip-toolbar .trip-tool-button--terra {
-  background: linear-gradient(155deg, var(--palette-terra-cotta) 0%, var(--palette-clay) 100%);
-  color: var(--color-text-on-accent-bg);
+  background: var(--palette-terra-cotta);
+  color: #fff;
   border-color: color-mix(in srgb, var(--palette-terra-cotta) 55%, var(--palette-clay) 45%);
   box-shadow: 0 1px 3px rgba(20, 18, 16, 0.35);
 }
 
 .trip-toolbar .trip-tool-button--terra:hover:not(:disabled) {
   border-color: var(--palette-sand);
-  background: linear-gradient(155deg, var(--color-accent-hover) 0%, var(--palette-clay) 100%);
-  color: var(--color-text-on-accent-bg);
+  background: var(--color-accent-hover);
+  color: #fff;
   filter: none;
 }
 
@@ -193,6 +193,10 @@
 }
 
 .share-menu-anchor {
+  position: relative;
+}
+
+.settings-menu-anchor {
   position: relative;
 }
 
@@ -243,9 +247,9 @@
 
 .inline-popover {
   position: absolute;
-  top: 78px;
-  right: 16px;
-  width: 340px;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  width: min(360px, 84vw);
   background: var(--color-surface);
   color: var(--color-ink);
   border: 1px solid var(--color-border);
@@ -280,6 +284,98 @@
   color: var(--color-ink);
 }
 
+.trip-settings-popover {
+  background: color-mix(in srgb, var(--palette-sand) 90%, var(--color-surface-elevated) 10%);
+  border-color: color-mix(in srgb, var(--trip-rim) 70%, var(--palette-clay) 30%);
+  color: var(--color-ink-on-sand);
+}
+
+/* Must beat `.trip-page .inline-popover` dark shell styles. */
+.trip-page .trip-settings-popover {
+  background: color-mix(in srgb, var(--palette-sand) 90%, var(--color-surface-elevated) 10%);
+  border-color: color-mix(in srgb, var(--trip-rim) 70%, var(--palette-clay) 30%);
+  color: var(--color-ink-on-sand);
+}
+
+.trip-settings-popover h3,
+.trip-settings-popover h4 {
+  color: var(--color-ink-on-sand);
+}
+
+.trip-settings-label {
+  display: block;
+  margin-bottom: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ink-on-sand);
+}
+
+.trip-settings-notes {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--trip-rim);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--palette-sand) 90%, #fff 10%);
+  color: var(--color-ink-on-sand);
+  padding: 0.55rem 0.65rem;
+  margin-bottom: 0.55rem;
+}
+
+.trip-settings-save {
+  width: 100%;
+  margin-bottom: 0.7rem;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--palette-terra-cotta) 58%, var(--palette-clay) 42%);
+  background: var(--palette-terra-cotta);
+  color: #fff;
+  padding: 0.45rem 0.7rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.trip-settings-save:hover {
+  filter: brightness(1.05);
+}
+
+.trip-settings-subhead {
+  margin: 0.35rem 0 0.45rem;
+  font-size: 0.84rem;
+  color: var(--color-ink-on-sand);
+}
+
+.trip-settings-remove {
+  border: 1px solid var(--trip-rim);
+  background: var(--palette-sand);
+  color: var(--color-ink-on-sand);
+  border-radius: 8px;
+  padding: 0.28rem 0.56rem;
+  font-size: 0.8rem;
+}
+
+.trip-settings-popover .participant-row span {
+  color: var(--color-ink-on-sand);
+  font-weight: 500;
+}
+
+.trip-settings-popover p,
+.trip-settings-popover small,
+.trip-settings-popover strong,
+.trip-settings-popover li {
+  color: var(--color-ink-on-sand);
+}
+
+.trip-settings-popover .modal-close-button {
+  color: var(--color-ink-on-sand);
+  border-color: color-mix(in srgb, var(--trip-rim) 65%, transparent);
+  background: color-mix(in srgb, var(--palette-sand) 88%, transparent);
+}
+
+.trip-settings-popover .modal-close-button:hover {
+  background: color-mix(in srgb, var(--palette-sand) 96%, #fff 4%);
+}
+
 .inline-popover-danger {
   margin-top: 1rem;
   padding-top: 0.75rem;
@@ -297,7 +393,7 @@
   margin: 0 0 0.5rem;
   font-size: 0.8rem;
   line-height: 1.35;
-  color: var(--color-ink-muted);
+  color: var(--color-ink-on-sand-muted);
 }
 
 .inline-popover-delete-trip {
@@ -684,11 +780,23 @@
     bottom: max(var(--space-sm), env(safe-area-inset-bottom, 0px));
   }
 
+  /* Keep settings popover within viewport on narrow screens. */
+  .settings-menu-anchor .trip-settings-popover {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 4.25rem);
+    right: max(var(--space-sm), env(safe-area-inset-right, 0px));
+    left: max(var(--space-sm), env(safe-area-inset-left, 0px));
+    width: auto;
+    max-width: none;
+    max-height: min(72dvh, 34rem);
+    overflow-y: auto;
+  }
+
   /* Drag handle between stacked map and timeline (see `useTripTimelineResize`). */
   .trip-timeline-split-handle {
     flex: 0 0 auto;
     width: 100%;
-    height: var(--trip-split-handle-h, 12px);
+    height: var(--trip-split-handle-h, 26px);
     padding: 0;
     margin: 0;
     border: none;
@@ -700,6 +808,10 @@
     display: block;
     box-sizing: border-box;
     border-radius: var(--radius-sm);
+  }
+
+  .trip-timeline-split-handle:active {
+    cursor: ns-resize;
   }
 
   .trip-timeline-split-handle::before {
@@ -877,6 +989,26 @@
   flex-shrink: 0;
 }
 
+@media (min-width: 769px) {
+  .stop-view-sheet--map-overlay {
+    left: var(--space-md);
+    right: auto;
+    bottom: var(--space-md);
+    width: min(360px, calc(100% - (var(--space-md) * 2)));
+  }
+
+  .stop-view-sheet {
+    max-height: min(58vh, 460px);
+    border: 1px solid color-mix(in srgb, var(--palette-terra-cotta) 45%, var(--trip-rim) 55%);
+    border-radius: var(--radius-lg);
+    border-top-width: 2px;
+    box-shadow:
+      0 18px 40px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(233, 226, 214, 0.08);
+    animation: stopDesktopFloatIn 0.26s cubic-bezier(0.25, 0.82, 0.2, 1);
+  }
+}
+
 /* Wrapper: desktop only — must NOT follow the mobile block or it overrides `position:fixed` + backdrop. */
 @media (min-width: 769px) {
   .stop-view-sheet-shell {
@@ -907,6 +1039,17 @@
   to {
     opacity: 1;
     transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes stopDesktopFloatIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -1185,6 +1328,119 @@
   text-align: left;
 }
 
+.trip-modal-overlay {
+  background: rgba(24, 20, 17, 0.72);
+  backdrop-filter: blur(3px);
+}
+
+.trip-modal-overlay .modal-content {
+  background: color-mix(in srgb, var(--palette-sand) 92%, #fff 8%);
+  border-color: color-mix(in srgb, var(--trip-rim) 66%, var(--palette-clay) 34%);
+  border-radius: var(--radius-lg);
+  color: var(--color-ink-on-sand);
+  box-shadow:
+    0 24px 56px rgba(0, 0, 0, 0.36),
+    inset 0 1px 0 rgba(255, 247, 235, 0.35);
+}
+
+.trip-modal-overlay .modal-header {
+  background: color-mix(in srgb, var(--palette-sand) 84%, var(--palette-clay) 16%);
+  border-bottom: 1px solid color-mix(in srgb, var(--trip-rim) 65%, transparent);
+  padding: 1rem 1.2rem;
+}
+
+.trip-modal-overlay .modal-header h2 {
+  font-size: 1.2rem;
+  letter-spacing: 0.01em;
+  color: var(--color-ink-on-sand);
+}
+
+.trip-modal-overlay .modal-form {
+  padding: 1rem 1.2rem 1.15rem;
+  color: var(--color-ink-on-sand);
+}
+
+.trip-modal-overlay .modal-form h4,
+.trip-modal-overlay .modal-form p,
+.trip-modal-overlay .modal-form span {
+  color: var(--color-ink-on-sand);
+}
+
+.trip-modal-overlay .modal-form .form-group {
+  margin-bottom: 0.85rem;
+}
+
+.trip-modal-overlay .modal-form label {
+  color: var(--color-ink-on-sand);
+  font-weight: 600;
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.trip-modal-overlay .modal-form input,
+.trip-modal-overlay .modal-form textarea,
+.trip-modal-overlay .modal-form select {
+  border: 1px solid color-mix(in srgb, var(--trip-rim) 65%, transparent);
+  background: color-mix(in srgb, var(--palette-sand) 93%, #fff 7%);
+  color: var(--color-ink-on-sand);
+  border-radius: 10px;
+  padding: 0.6rem 0.68rem;
+}
+
+.trip-modal-overlay .modal-form textarea {
+  min-height: 5.5rem;
+}
+
+.trip-modal-overlay .modal-form input:focus,
+.trip-modal-overlay .modal-form textarea:focus,
+.trip-modal-overlay .modal-form select:focus {
+  border-color: var(--palette-terra-cotta);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--palette-terra-cotta) 24%, transparent);
+}
+
+.trip-modal-overlay .modal-actions {
+  margin-top: 1.2rem;
+  padding-top: 0.85rem;
+}
+
+.trip-modal-overlay .modal-actions button {
+  border-radius: 10px;
+  border: 1px solid var(--trip-rim);
+  background: color-mix(in srgb, var(--palette-sand) 92%, #fff 8%);
+  color: var(--color-ink-on-sand);
+  padding: 0.48rem 0.86rem;
+}
+
+.trip-modal-overlay .modal-actions button:last-child {
+  border-color: color-mix(in srgb, var(--palette-terra-cotta) 52%, var(--palette-clay) 48%);
+  background: var(--palette-terra-cotta);
+  color: #fff;
+}
+
+.trip-modal-overlay .participant-row button {
+  border: 1px solid color-mix(in srgb, var(--trip-rim) 70%, transparent);
+  background: color-mix(in srgb, var(--palette-sand) 92%, #fff 8%);
+  color: var(--color-ink-on-sand);
+  border-radius: 8px;
+  padding: 0.35rem 0.62rem;
+}
+
+.trip-modal-overlay .payments-table {
+  color: var(--color-ink-on-sand);
+}
+
+.trip-modal-overlay .payments-table th {
+  background: color-mix(in srgb, var(--palette-sand) 82%, var(--palette-clay) 18%);
+  color: var(--color-ink-on-sand);
+  border-color: color-mix(in srgb, var(--trip-rim) 55%, var(--palette-clay) 45%);
+}
+
+.trip-modal-overlay .payments-table td {
+  color: var(--color-ink-on-sand);
+  border-color: color-mix(in srgb, var(--trip-rim) 48%, transparent);
+}
+
 .money-modal-content {
   max-width: 720px;
 }
@@ -1204,13 +1460,17 @@
   background: var(--color-input-bg);
 }
 
+.trip-modal-overlay .money-modal-tabs {
+  background: color-mix(in srgb, var(--palette-sand) 86%, var(--palette-clay) 14%);
+}
+
 .money-modal-tab {
   padding: 0.75rem 1.25rem;
   border: none;
   background: transparent;
   font-size: 0.95rem;
   font-weight: 400;
-  color: var(--color-ink-muted);
+  color: var(--color-ink-on-sand);
   cursor: pointer;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
@@ -1218,12 +1478,17 @@
 }
 
 .money-modal-tab:hover {
-  color: var(--color-ink);
+  color: var(--color-ink-on-sand);
 }
 
 .money-modal-tab--active {
   color: var(--color-accent-2);
   border-bottom-color: var(--color-accent-2);
+}
+
+.trip-modal-overlay .money-modal-tab--active {
+  color: var(--palette-terra-cotta);
+  border-bottom-color: var(--palette-terra-cotta);
 }
 
 .money-modal-body {
@@ -1236,7 +1501,7 @@
 
 .money-modal-summary {
   margin: 0 0 0.65rem;
-  color: var(--color-ink-muted);
+  color: var(--color-ink-on-sand);
   font-size: 0.95rem;
   font-weight: 300;
 }
@@ -1248,14 +1513,14 @@
 .money-modal-hint {
   margin: 0 0 1rem;
   font-size: 0.8rem;
-  color: var(--color-ink-muted);
+  color: var(--color-ink-on-sand-muted);
   line-height: 1.45;
   font-weight: 300;
 }
 
 .money-modal-empty {
   margin: 0;
-  color: var(--color-ink-faint);
+  color: var(--color-ink-on-sand-muted);
   font-weight: 300;
 }
 
@@ -1271,12 +1536,12 @@
 }
 
 .money-balance--negative {
-  color: var(--color-danger);
+  color: #7f1d1d;
   font-weight: 500;
 }
 
 .money-balance--zero {
-  color: var(--color-ink-muted);
+  color: var(--color-ink-on-sand-muted);
 }
 
 .money-overview-row--you td {
@@ -1292,7 +1557,7 @@
 
 .money-overview-sublabel {
   font-size: 0.75rem;
-  color: var(--color-ink-muted);
+  color: var(--color-ink-on-sand-muted);
   font-weight: 400;
 }
 
@@ -1312,7 +1577,7 @@
 
 .setup-subtitle {
   margin: 0;
-  color: var(--color-ink-muted);
+  color: var(--color-ink-on-sand-muted);
   font-weight: 300;
 }
 
@@ -1320,19 +1585,19 @@
   border: 1px solid var(--color-border);
   border-radius: 10px;
   padding: 0.8rem;
-  background: var(--color-input-bg);
+  background: color-mix(in srgb, var(--palette-sand) 93%, #fff 7%);
 }
 
 .setup-field-card label {
   display: block;
   font-weight: 500;
   margin-bottom: 0.25rem;
-  color: var(--color-ink);
+  color: var(--color-ink-on-sand);
 }
 
 .setup-field-card small {
   display: block;
-  color: var(--color-ink-muted);
+  color: var(--color-ink-on-sand-muted);
   margin-bottom: 0.5rem;
   font-weight: 300;
 }
@@ -1358,18 +1623,13 @@
 }
 
 .flight-preview-card {
-  border: 1px solid #e7e7e7;
+  border: 1px solid color-mix(in srgb, var(--trip-rim) 62%, transparent);
   border-radius: 8px;
-  background: #fcfcfc;
+  background: color-mix(in srgb, var(--palette-sand) 93%, #fff 7%);
   padding: 0.6rem;
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-}
-
-.flight-preview-card span {
-  font-size: 0.9rem;
-  color: #444;
+  gap: 0.45rem;
 }
 
 .flight-preview-header {
@@ -1383,11 +1643,31 @@
   align-items: center;
   gap: 0.35rem;
   font-size: 0.9rem;
-  color: #333;
+  color: var(--color-ink-on-sand);
 }
 
 .flight-preview-time-row {
   display: grid;
   grid-template-columns: 1fr 130px;
   gap: 0.4rem;
+}
+
+.flights-modal-form > textarea {
+  border: 1px solid color-mix(in srgb, var(--trip-rim) 60%, transparent);
+  background: color-mix(in srgb, var(--palette-sand) 94%, #fff 6%);
+  border-radius: 10px;
+  padding: 0.62rem 0.68rem;
+}
+
+.flights-modal-form > button {
+  align-self: flex-start;
+  border: 1px solid color-mix(in srgb, var(--palette-terra-cotta) 52%, var(--palette-clay) 48%);
+  background: var(--palette-terra-cotta);
+  color: #fff;
+  border-radius: 10px;
+  padding: 0.46rem 0.84rem;
+}
+
+.lodging-form-card {
+  gap: 0.45rem;
 }

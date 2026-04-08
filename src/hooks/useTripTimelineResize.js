@@ -91,7 +91,8 @@ export function useTripTimelineResize(timelineOpen) {
   const onResizePointerDown = useCallback(
     (e) => {
       if (!showHandle) return
-      if (e.button !== 0) return
+      // For touch/pen, some browsers report non-primary `button`; only enforce for mouse.
+      if (e.pointerType === 'mouse' && e.button !== 0) return
       const mapEl = mapColumnRef.current
       if (!mapEl) return
       const next = mapHeightForGripCenterAt(e.clientY)

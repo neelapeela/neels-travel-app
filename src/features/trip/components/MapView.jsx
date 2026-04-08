@@ -30,66 +30,105 @@ function ResizeHandler({ shouldResizeMap, layoutResizeKey }) {
 
 const FLY_ZOOM = 17
 
-/** Bottom inset used for “visible map band” above the sheet (buffer + clamps). */
-function effectiveSheetPadPx(map, rawPad) {
+/** Left inset used for visible map area to the right of floating stop card. */
+function effectiveLeftPadPx(map, rawPad) {
   if (!rawPad || rawPad <= 0) return 0
   const size = map.getSize()
   const pad = Math.min(
-    Math.round(rawPad + 20 + rawPad * 0.08),
-    Math.floor(size.y * 0.82),
-    size.y - 52
+    Math.round(rawPad + 16 + rawPad * 0.08),
+    Math.floor(size.x * 0.75),
+    size.x - 80
   )
-  if (pad <= 0 || size.y - pad < 44) return 0
+  if (pad <= 0 || size.x - pad < 88) return 0
   return pad
 }
 
 /**
- * Map center (lat/lng) such that `latlng` appears at the target pixel row for the sheet inset — one smooth
+ * Map center (lat/lng) such that `latlng` appears in the center of the visible area to the right of
+ * the floating stop card — one smooth
  * `flyTo` instead of fly-to-center + abrupt `panBy`.
  */
-function offsetCenterLatLngForSheet(map, latlng, zoom, rawPad) {
+function offsetCenterLatLngForFloatingCard(map, latlng, zoom, rawPad) {
   const size = map.getSize()
-  const pad = effectiveSheetPadPx(map, rawPad)
+  const pad = effectiveLeftPadPx(map, rawPad)
   if (pad <= 0) return latlng
 
-  const visibleH = size.y - pad
-  const target = L.point(size.x / 2, visibleH / 2)
+  const visibleW = size.x - pad
+  const target = L.point(pad + visibleW / 2, size.y / 2)
   const viewHalf = size.divideBy(2)
   const stopPx = map.project(latlng, zoom)
   const newCenterPx = stopPx.subtract(target.subtract(viewHalf))
   return map.unproject(newCenterPx, zoom)
 }
 
+function FitStopsToView({ coordinates, stops, fitViewKey }) {
+  const map = useMap()
+  const lastFitKeyRef = useRef('')
+
+  const fitStops = useMemo(
+    () =>
+      (stops || []).filter(
+        (s) => Number.isFinite(Number(s?.latitude)) && Number.isFinite(Number(s?.longitude))
+      ),
+    [stops]
+  )
+
+  useEffect(() => {
+    const key = fitStops
+      .map((s) => `${s.id}:${Number(s.latitude).toFixed(5)},${Number(s.longitude).toFixed(5)}`)
+      .join('|')
+    const combinedKey = `${fitViewKey || ''}::${key}`
+    if (!key) {
+      // Reset de-dupe state for no-stop days so returning to a prior stop day refits correctly.
+      lastFitKeyRef.current = `${fitViewKey || ''}::(empty)`
+      return
+    }
+    if (combinedKey === lastFitKeyRef.current) return
+    map.stop()
+    lastFitKeyRef.current = combinedKey
+
+    const latLngs = fitStops.map((s) => L.latLng(Number(s.latitude), Number(s.longitude)))
+    if (latLngs.length === 1) {
+      map.flyTo(latLngs[0], Math.max(map.getZoom(), 14), { duration: 0.45, animate: true })
+      return
+    }
+
+    const bounds = L.latLngBounds(latLngs)
+    map.fitBounds(bounds, {
+      padding: [44, 44],
+      animate: true,
+      duration: 0.5,
+      maxZoom: 15
+    })
+  }, [map, fitStops, fitViewKey])
+
+  useEffect(() => {
+    if (!coordinates) return
+    if (fitStops.length > 0) return
+    map.setView(coordinates, 13, { animate: false })
+  }, [map, coordinates, fitStops.length])
+
+  return null
+}
+
 /**
  * Fly so the stop ends in the visual center of the band above the sheet; padding is ref-backed so the
  * fly effect deps stay stable. Closing the stop flies back to center the pin in the full map.
  */
-function FlyToSelectedStop({ focusStop, focusBottomPaddingPx = 0 }) {
+function FlyToSelectedStop({ focusStop, focusLeftPaddingPx = 0 }) {
   const map = useMap()
   const lastFlyTargetKeyRef = useRef('')
-  const paddingRef = useRef(focusBottomPaddingPx)
+  const paddingRef = useRef(focusLeftPaddingPx)
   const flyAnimActiveRef = useRef(false)
-  /** Stop position for re-centering the full map when the sheet closes. */
-  const lastSelectedStopLatLngRef = useRef(null)
   /** Tracks padding for the current stop so we only run a follow-up fly when inset changes (resize). */
   const sheetPadForStopRef = useRef({ id: null, pad: null })
-  paddingRef.current = focusBottomPaddingPx
+  paddingRef.current = focusLeftPaddingPx
 
   useEffect(() => {
     if (focusStop) return undefined
     lastFlyTargetKeyRef.current = ''
     sheetPadForStopRef.current = { id: null, pad: null }
-    const restore = lastSelectedStopLatLngRef.current
-    lastSelectedStopLatLngRef.current = null
-    if (!restore) return undefined
-    const z = map.getZoom()
-    const raf = requestAnimationFrame(() => {
-      map.invalidateSize({ pan: false })
-      map.flyTo(restore, z, { duration: 0.38, animate: true })
-    })
-    return () => {
-      cancelAnimationFrame(raf)
-    }
+    return undefined
   }, [map, focusStop])
 
   /* eslint-disable react-hooks/exhaustive-deps -- flyTo must not depend on full `focusStop` or padding (see module comment). */
@@ -104,7 +143,6 @@ function FlyToSelectedStop({ focusStop, focusBottomPaddingPx = 0 }) {
     lastFlyTargetKeyRef.current = key
 
     const latlng = L.latLng(focusStop.latitude, focusStop.longitude)
-    lastSelectedStopLatLngRef.current = latlng
     sheetPadForStopRef.current = { id: focusStop.id, pad: paddingRef.current }
 
     let cancelled = false
@@ -120,7 +158,7 @@ function FlyToSelectedStop({ focusStop, focusBottomPaddingPx = 0 }) {
       if (cancelled) return
       map.invalidateSize({ pan: false })
       flyAnimActiveRef.current = true
-      const dest = offsetCenterLatLngForSheet(map, latlng, FLY_ZOOM, paddingRef.current)
+      const dest = offsetCenterLatLngForFloatingCard(map, latlng, FLY_ZOOM, paddingRef.current)
       map.flyTo(dest, FLY_ZOOM, { duration: 0.55, animate: true })
       map.once('moveend', onFlyMoveEnd)
     }
@@ -145,14 +183,14 @@ function FlyToSelectedStop({ focusStop, focusBottomPaddingPx = 0 }) {
     if (!focusStop || !Number.isFinite(focusStop.latitude) || !Number.isFinite(focusStop.longitude)) {
       return undefined
     }
-    if (focusBottomPaddingPx <= 0) return undefined
+    if (focusLeftPaddingPx <= 0) return undefined
 
     const id = focusStop.id
     const prev = sheetPadForStopRef.current
     if (prev.id !== id) return undefined
-    if (prev.pad === focusBottomPaddingPx) return undefined
+    if (prev.pad === focusLeftPaddingPx) return undefined
 
-    sheetPadForStopRef.current = { id, pad: focusBottomPaddingPx }
+    sheetPadForStopRef.current = { id, pad: focusLeftPaddingPx }
 
     const latlng = L.latLng(focusStop.latitude, focusStop.longitude)
     let cancelled = false
@@ -169,7 +207,7 @@ function FlyToSelectedStop({ focusStop, focusBottomPaddingPx = 0 }) {
       }
       map.invalidateSize({ pan: false })
       flyAnimActiveRef.current = true
-      const dest = offsetCenterLatLngForSheet(map, latlng, FLY_ZOOM, focusBottomPaddingPx)
+      const dest = offsetCenterLatLngForFloatingCard(map, latlng, FLY_ZOOM, focusLeftPaddingPx)
       map.once('moveend', onAdjustMoveEnd)
       map.flyTo(dest, FLY_ZOOM, { duration: 0.28, animate: true })
     }
@@ -181,7 +219,7 @@ function FlyToSelectedStop({ focusStop, focusBottomPaddingPx = 0 }) {
       map.off('moveend', onAdjustMoveEnd)
       flyAnimActiveRef.current = false
     }
-  }, [map, focusStop?.id, focusStop?.latitude, focusStop?.longitude, focusBottomPaddingPx])
+  }, [map, focusStop?.id, focusStop?.latitude, focusStop?.longitude, focusLeftPaddingPx])
   /* eslint-enable react-hooks/exhaustive-deps */
 
   return null
@@ -217,7 +255,8 @@ export default function MapView({
   layoutResizeKey,
   stops,
   focusStop,
-  focusBottomPaddingPx = 0
+  focusLeftPaddingPx = 0,
+  fitViewKey = ''
 }) {
   const [routePoints, setRoutePoints] = useState([])
   const sortedStopsRef = useRef([])
@@ -348,7 +387,8 @@ export default function MapView({
             </Popup>
           </Marker>
         ))}
-        <FlyToSelectedStop focusStop={focusStop} focusBottomPaddingPx={focusBottomPaddingPx} />
+        <FitStopsToView coordinates={coordinates} stops={sortedStops} fitViewKey={fitViewKey} />
+        <FlyToSelectedStop focusStop={focusStop} focusLeftPaddingPx={focusLeftPaddingPx} />
         <ResizeHandler shouldResizeMap={shouldResizeMap} layoutResizeKey={layoutResizeKey} />
       </MapContainer>
     </div>

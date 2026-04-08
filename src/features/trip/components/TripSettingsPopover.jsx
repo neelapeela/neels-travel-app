@@ -18,24 +18,27 @@ export default function TripSettingsPopover({
   }
 
   return (
-    <div className="inline-popover">
+    <div className="inline-popover trip-settings-popover" role="dialog" aria-label="Trip settings">
       <div className="inline-popover-header">
         <h3>Trip Settings</h3>
         <button type="button" className="modal-close-button" onClick={onClose} aria-label="Close">
           ×
         </button>
       </div>
-      <label htmlFor="trip-notes-input">Trip Notes</label>
+      <label htmlFor="trip-notes-input" className="trip-settings-label">
+        Trip Notes
+      </label>
       <textarea
         id="trip-notes-input"
+        className="trip-settings-notes"
         rows={4}
         value={tripNotesDraft}
         onChange={(event) => onTripNotesDraftChange(event.target.value)}
       />
-      <button type="button" onClick={onSaveTripSettings}>
+      <button type="button" className="trip-settings-save" onClick={onSaveTripSettings}>
         Save Settings
       </button>
-      <h4>Participants</h4>
+      <h4 className="trip-settings-subhead">Participants</h4>
       {(participants || []).map((participantId) => {
         const name = labelFor(participantId)
         const youSuffix = participantId === currentUserId ? ' (You)' : ''
@@ -46,7 +49,7 @@ export default function TripSettingsPopover({
               {youSuffix}
             </span>
             {canManageSharing && participantId !== creatorId && (
-              <button type="button" onClick={() => onRemoveParticipant(participantId)}>
+              <button type="button" className="trip-settings-remove" onClick={() => onRemoveParticipant(participantId)}>
                 Remove
               </button>
             )}

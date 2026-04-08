@@ -48,8 +48,7 @@ export default function ItineraryView({
       <div className="itinerary-header">
         <h3 className="itinerary-header__title">Day timeline</h3>
         <p className="itinerary-header__hint">
-          Tap a time to add a stop · drag stops between hours (desktop) · narrow screens: drag the grip between
-          map and timeline to resize height
+          Tap a time to add a stop · drag stops between hours
         </p>
       </div>
       <div className="timeline">

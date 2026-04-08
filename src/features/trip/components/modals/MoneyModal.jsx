@@ -15,7 +15,7 @@ export default function MoneyModal({
   participantCount
 }) {
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay trip-modal-overlay" onClick={onClose}>
       <div className="modal-content money-modal-content" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header money-modal-header">
           <h2>Money</h2>

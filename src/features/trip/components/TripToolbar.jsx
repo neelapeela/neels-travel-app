@@ -21,7 +21,8 @@ export default function TripToolbar({
   shareCopied,
   onCopyShareCode,
   onCopyShareLink,
-  setShowTimePanel
+  setShowTimePanel,
+  settingsPopover
 }) {
   return (
     <div className="trip-toolbar">
@@ -60,14 +61,17 @@ export default function TripToolbar({
       </div>
 
       <div className="trip-toolbar-right">
-        <button
-          type="button"
-          className="trip-tool-button"
-          onClick={() => setShowSettingsModal((prev) => !prev)}
-          aria-label="Trip settings"
-        >
-          <BsGear />
-        </button>
+        <div className="settings-menu-anchor">
+          <button
+            type="button"
+            className="trip-tool-button"
+            onClick={() => setShowSettingsModal((prev) => !prev)}
+            aria-label="Trip settings"
+          >
+            <BsGear />
+          </button>
+          {settingsPopover}
+        </div>
         {canManageSharing && (
           <div className="share-menu-anchor">
             <button

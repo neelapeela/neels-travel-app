@@ -19,7 +19,8 @@ export const MAP_FALLBACK_CENTER = { lat: 37.7749, lng: -122.4194 }
 
 /** Stacked map ↔ timeline split (mobile); persisted height for the map band */
 export const TRIP_MAP_BAND_STORAGE_KEY = 'tripMapBandHeightPx'
-export const TRIP_TIMELINE_SPLIT_HANDLE_PX = 12
+/** Large touch target (visual grip remains small via CSS pseudo-element). */
+export const TRIP_TIMELINE_SPLIT_HANDLE_PX = 26
 export const TRIP_MAP_BAND_MIN_PX = 132
 export const TRIP_TIMELINE_MIN_PX = 140
 /** Same breakpoint as `trip.css` mobile timeline rules */
