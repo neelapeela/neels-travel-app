@@ -99,7 +99,9 @@ export default function TripToolbar({
 
         <button
           type="button"
-          className={`trip-tool-button${showTimePanel ? ' trip-tool-button--time-panel-active' : ''}`}
+          className={`trip-tool-button trip-tool-button--time-panel${
+            showTimePanel ? ' trip-tool-button--time-panel-active' : ''
+          }`}
           onClick={() => setShowTimePanel((prev) => !prev)}
           aria-label={showTimePanel ? 'Hide day timeline' : 'Show day timeline'}
           aria-pressed={showTimePanel}

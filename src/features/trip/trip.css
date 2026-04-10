@@ -168,6 +168,28 @@
 }
 
 /* Timeline toggle: clear “on” state vs default sand chip */
+.trip-toolbar .trip-tool-button--time-panel:not(.trip-tool-button--time-panel-active) {
+  border-color: var(--trip-rim);
+  background: var(--trip-toolbar-btn-bg);
+  color: var(--color-primary-action-text);
+  box-shadow: none;
+  outline: none;
+}
+
+.trip-toolbar .trip-tool-button--time-panel:not(.trip-tool-button--time-panel-active):hover:not(:disabled) {
+  border-color: var(--trip-rim);
+  background: var(--trip-toolbar-btn-hover-bg);
+  color: var(--trip-toolbar-btn-icon-hover);
+}
+
+.trip-toolbar
+  .trip-tool-button--time-panel:not(.trip-tool-button--time-panel-active):focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--app-chrome-bg),
+    0 0 0 4px color-mix(in srgb, var(--trip-rim) 70%, white 30%);
+}
+
 .trip-toolbar .trip-tool-button--time-panel-active {
   border-color: var(--palette-terra-cotta);
   background: color-mix(in srgb, var(--palette-sand) 70%, var(--palette-terra-cotta) 30%);
@@ -771,9 +793,9 @@
 .timeline-stop--touch-lifted {
   touch-action: none;
   opacity: 0.35;
-  outline: 2px solid var(--palette-terra-cotta);
+  outline: 2px solid var(--trip-timeline-rim);
   outline-offset: 2px;
-  background: color-mix(in srgb, var(--trip-timeline-stop-pill-bg) 70%, var(--palette-ochre) 30%);
+  background: var(--trip-timeline-stop-pill-bg);
   box-shadow: 0 4px 14px rgba(31, 53, 50, 0.22);
   transform: scale(1.04);
   z-index: 2;
@@ -868,7 +890,7 @@
   /* Keep settings popover within viewport on narrow screens. */
   .settings-menu-anchor .trip-settings-popover {
     position: fixed;
-    top: calc(env(safe-area-inset-top, 0px) + 4.25rem);
+    top: calc(env(safe-area-inset-top, 0px) + 8.5rem);
     right: max(var(--space-sm), env(safe-area-inset-right, 0px));
     left: max(var(--space-sm), env(safe-area-inset-left, 0px));
     width: auto;

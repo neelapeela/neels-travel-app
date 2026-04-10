@@ -29,6 +29,7 @@ import { useStopSheetHeight } from '../../hooks/useStopSheetHeight'
 import { useTripTimelineResize } from '../../hooks/useTripTimelineResize'
 import { useTripPaymentAnalytics } from '../../hooks/useTripPaymentAnalytics'
 import { useTripSpecialStopGroups } from '../../hooks/useTripSpecialStopGroups'
+import { useRequestCache } from '../../hooks/useRequestCache'
 import { useTripDaySelection } from './hooks/useTripDaySelection'
 import { normalizeTimeInput } from '../../utils/stopTime'
 import { isDateWithinRange, formatDateHeading } from '../../utils/tripDates'
@@ -96,6 +97,9 @@ export default function TripPage() {
   })
   const [flightLookupLoading, setFlightLookupLoading] = useState(false)
   const [flightLookupError, setFlightLookupError] = useState('')
+  const geocodeCache = useRequestCache()
+  const reverseGeocodeCache = useRequestCache()
+  const flightLookupCache = useRequestCache()
 
   const {
     selectedDay,
@@ -136,6 +140,25 @@ export default function TripPage() {
     await navigator.clipboard.writeText(trip?.inviteCode || '')
     setShareCopied('Code copied')
     setTimeout(() => setShareCopied(''), SHARE_FEEDBACK_CLEAR_MS)
+  }
+
+  const getCachedGeocode = async (locationRaw) => {
+    const location = locationRaw?.trim()
+    if (!location) return null
+    const key = location.toLowerCase()
+    return geocodeCache.getOrSet(key, async () => (await geocodeLocation(location)) || null)
+  }
+
+  const getCachedReverseGeocode = async (lat, lon) => {
+    const key = `${Number(lat).toFixed(5)},${Number(lon).toFixed(5)}`
+    return reverseGeocodeCache.getOrSet(key, async () => (await reverseGeocodeLocation(lat, lon)) || null)
+  }
+
+  const getCachedFlightLookup = async (flightNumber, targetDate) => {
+    const key = `${String(flightNumber || '')
+      .trim()
+      .toUpperCase()}::${String(targetDate || '')}`
+    return flightLookupCache.getOrSet(key, async () => lookupFlightByNumber(flightNumber, { targetDate }))
   }
 
   const handleStopHourChange = async (stopId, hour) => {
@@ -292,9 +315,9 @@ export default function TripPage() {
   }
 
   const createSpecialStop = async (base, dateOverride) => {
-    const coords = await geocodeLocation(base.location)
+    const coords = await getCachedGeocode(base.location)
     if (!coords) return
-    const canonical = (await reverseGeocodeLocation(coords.lat, coords.lon)) || base.location
+    const canonical = (await getCachedReverseGeocode(coords.lat, coords.lon)) || base.location
     await addSpecialStopToTrip(tripId, dateOverride || selectedDate, {
       title: base.title,
       notes: base.notes || '',
@@ -375,9 +398,7 @@ export default function TripPage() {
       const lookedUp = []
       for (let index = 0; index < numbers.length; index += 1) {
         const flightNumber = numbers[index]
-        const flight = await lookupFlightByNumber(flightNumber, {
-          targetDate: selectedDate
-        })
+        const flight = await getCachedFlightLookup(flightNumber, selectedDate)
         lookedUp.push({
           ...flight,
           id: `${flight.flightNumber || flightNumber}-${index}`,
@@ -532,12 +553,11 @@ export default function TripPage() {
 
       const locationChanged = patch.location !== (selectedStop.location || '')
       if (locationChanged && patch.location) {
-        const coords = await geocodeLocation(patch.location)
+        const coords = await getCachedGeocode(patch.location)
         if (coords) {
           patch.latitude = coords.lat
           patch.longitude = coords.lon
-          patch.location =
-            (await reverseGeocodeLocation(coords.lat, coords.lon)) || patch.location
+          patch.location = (await getCachedReverseGeocode(coords.lat, coords.lon)) || patch.location
         }
       }
 
