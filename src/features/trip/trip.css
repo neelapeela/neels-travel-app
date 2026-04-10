@@ -554,6 +554,11 @@
   touch-action: pan-x pan-y;
 }
 
+.time-panel-scroll--drag-locked {
+  overflow-y: hidden;
+  overscroll-behavior: none;
+}
+
 .time-panel-date-nav {
   display: flex;
   align-items: center;
@@ -765,6 +770,7 @@
 
 .timeline-stop--touch-lifted {
   touch-action: none;
+  opacity: 0.35;
   outline: 2px solid var(--palette-terra-cotta);
   outline-offset: 2px;
   background: color-mix(in srgb, var(--trip-timeline-stop-pill-bg) 70%, var(--palette-ochre) 30%);
@@ -772,6 +778,22 @@
   transform: scale(1.04);
   z-index: 2;
   position: relative;
+}
+
+.timeline-stop-ghost {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 1300;
+  transform: translate(-50%, -50%) scale(1.05);
+  pointer-events: none;
+  border: 1px solid var(--trip-timeline-rim);
+  background: color-mix(in srgb, var(--trip-timeline-stop-pill-bg) 68%, var(--palette-ochre) 32%);
+  color: var(--trip-timeline-ink);
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  box-shadow: 0 8px 22px rgba(31, 53, 50, 0.28);
+  white-space: nowrap;
 }
 
 /* ----- Trip: mobile — stack map + timeline; horizontal scroll for busy hour rows ----- */
