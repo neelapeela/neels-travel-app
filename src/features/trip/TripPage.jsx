@@ -11,7 +11,6 @@ import {
   deleteStopFromTrip,
   deletePaymentFromStop,
   addSpecialStopToTrip,
-  completeTripSetup,
   deleteFlightStopsAcrossTrip,
   deleteLodgingStopsAcrossTrip,
   lookupFlightByNumber,
@@ -30,7 +29,7 @@ import { useTripTimelineResize } from '../../hooks/useTripTimelineResize'
 import { useTripPaymentAnalytics } from '../../hooks/useTripPaymentAnalytics'
 import { useTripSpecialStopGroups } from '../../hooks/useTripSpecialStopGroups'
 import { useRequestCache } from '../../hooks/useRequestCache'
-import { useTripDaySelection } from './hooks/useTripDaySelection'
+import { useTripDaySelection } from '../../hooks/useTripDaySelection'
 import { normalizeTimeInput } from '../../utils/stopTime'
 import { isDateWithinRange, formatDateHeading } from '../../utils/tripDates'
 import { SHARE_FEEDBACK_CLEAR_MS } from './constants'
@@ -42,7 +41,7 @@ import TripSettingsPopover from './components/TripSettingsPopover'
 import MoneyModal from './components/modals/MoneyModal'
 import AddPaymentModal from './components/modals/AddPaymentModal'
 import PaymentDetailModal from './components/modals/PaymentDetailModal'
-import SetupModal from './components/modals/SetupModal'
+import TripOnboardingCarousel from './components/TripOnboardingCarousel'
 import FlightsModal from './components/modals/FlightsModal'
 import LodgingModal from './components/modals/LodgingModal'
 import './trip.css'
@@ -76,11 +75,8 @@ export default function TripPage() {
   const [paymentsMoneyTab, setPaymentsMoneyTab] = useState('overview')
   const [showFlightsModal, setShowFlightsModal] = useState(false)
   const [showLodgingModal, setShowLodgingModal] = useState(false)
-  const [showSetupModal, setShowSetupModal] = useState(false)
-  const [setupModalDismissedForTripId, setSetupModalDismissedForTripId] = useState(null)
   const [tripNotesDraft, setTripNotesDraft] = useState('')
-  const [setupNotes, setSetupNotes] = useState('')
-  const [setupFirstDayTitle, setSetupFirstDayTitle] = useState('')
+  const [showTripOnboarding, setShowTripOnboarding] = useState(false)
   const [paymentForm, setPaymentForm] = useState({ reason: '', amount: '' })
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false)
   const [paymentDetailModal, setPaymentDetailModal] = useState(null)
@@ -204,21 +200,20 @@ export default function TripPage() {
   }, [trip?.notes])
 
   useEffect(() => {
-    setSetupModalDismissedForTripId(null)
-  }, [tripId])
+    if (!tripId || !trip?.id) {
+      setShowTripOnboarding(false)
+      return
+    }
+    setShowTripOnboarding(true)
+  }, [tripId, trip?.id])
 
   useEffect(() => {
-    if (!trip?.id) return
-    if (trip.setupCompleted !== false) {
-      setShowSetupModal(false)
-      return
-    }
-    if (setupModalDismissedForTripId === trip.id) {
-      setShowSetupModal(false)
-      return
-    }
-    setShowSetupModal(true)
-  }, [trip, setupModalDismissedForTripId])
+    if (showTripOnboarding) setShowTimePanel(true)
+  }, [showTripOnboarding])
+
+  const dismissTripOnboarding = () => {
+    setShowTripOnboarding(false)
+  }
 
   const canManageSharing = user?.uid && trip?.creatorId === user.uid
 
@@ -526,20 +521,6 @@ export default function TripPage() {
     setShowPaymentsModal(true)
   }
 
-  const handleDismissSetupModal = () => {
-    if (trip?.id) setSetupModalDismissedForTripId(trip.id)
-    setShowSetupModal(false)
-  }
-
-  const handleCompleteSetup = async () => {
-    await completeTripSetup(tripId, {
-      notes: setupNotes,
-      firstDayTitle: setupFirstDayTitle
-    })
-    setSetupModalDismissedForTripId(null)
-    setShowSetupModal(false)
-  }
-
   const handleSaveStop = async () => {
     if (!selectedDate || !selectedStopId || !selectedStop) return
     setSavingStop(true)
@@ -656,7 +637,12 @@ export default function TripPage() {
         ref={tripContentRef}
         className={`trip-page-content${showTimePanel ? ' trip-page-content--with-timeline' : ''}`}
       >
-        <div ref={mapColumnRef} className="trip-map-column" style={mapColumnStyle}>
+        <div
+          ref={mapColumnRef}
+          className="trip-map-column"
+          style={mapColumnStyle}
+          data-trip-tutorial="trip-map"
+        >
           <div className="trip-map-stack">
             <div className="trip-map-pane" ref={tripMapPaneRef}>
               {coordinates && (
@@ -713,7 +699,7 @@ export default function TripPage() {
           />
         )}
         {showTimePanel && (
-          <div className="trip-right-column">
+          <div className="trip-right-column" data-trip-tutorial="trip-timeline">
             <div className="time-panel">
               <div className="time-panel-date-nav">
                 <button
@@ -811,16 +797,12 @@ export default function TripPage() {
         onDelete={handleDeletePayment}
       />
 
-      {showSetupModal && (
-        <SetupModal
-          setupNotes={setupNotes}
-          setupFirstDayTitle={setupFirstDayTitle}
-          onNotesChange={setSetupNotes}
-          onFirstDayTitleChange={setSetupFirstDayTitle}
-          onComplete={handleCompleteSetup}
-          onClose={handleDismissSetupModal}
-        />
-      )}
+      <TripOnboardingCarousel
+        key={tripId}
+        open={showTripOnboarding}
+        onDismiss={dismissTripOnboarding}
+        showTimePanel={showTimePanel}
+      />
     </div>
   )
 }

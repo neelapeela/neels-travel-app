@@ -8,9 +8,14 @@ import {
   readCoord,
   stopHasValidMapCoords,
   straightLinePositions
-} from '../../../utils/osrmRoute'
+} from '../../../utils/mapboxRoute'
 import '../trip.css'
-import { MAP_TILE_ATTRIBUTION, MAP_TILE_URL, OSRM_FETCH_DEBOUNCE_MS } from '../constants'
+import {
+  MAP_TILE_ATTRIBUTION,
+  MAP_TILE_URL,
+  MAPBOX_ROUTE_ATTRIBUTION,
+  ROUTE_FETCH_DEBOUNCE_MS
+} from '../constants'
 
 // Fix for default marker icons
 delete L.Icon.Default.prototype._getIconUrl
@@ -286,6 +291,14 @@ export default function MapView({
 
   const routeToDraw = routePoints.length > 1 ? routePoints : straightFallback
 
+  const mapRouteMountedRef = useRef(true)
+  useEffect(() => {
+    mapRouteMountedRef.current = true
+    return () => {
+      mapRouteMountedRef.current = false
+    }
+  }, [])
+
   /* eslint-disable react-hooks/exhaustive-deps -- only refetch when stop coords/ids change (string), not when Firestore replaces the stops array. */
   useEffect(() => {
     const debug =
@@ -293,8 +306,6 @@ export default function MapView({
       (typeof import.meta !== 'undefined' && import.meta.env?.VITE_ROUTE_DEBUG === 'true')
 
     const keyWhenScheduled = routeStopsKey
-    let alive = true
-    const ac = new AbortController()
     setRoutePoints([])
 
     const stopsSnapshot = sortedStops
@@ -305,46 +316,51 @@ export default function MapView({
         routeStopsKey: routeStopsKey || '(empty)',
         sortedStopCount: stopsSnapshot.length,
         routableStopCount: nRoutable,
-        osrmAfterMs: OSRM_FETCH_DEBOUNCE_MS
+        routeAfterMs: ROUTE_FETCH_DEBOUNCE_MS
       })
     }
 
     const timeoutId = setTimeout(() => {
-      if (!alive) return
       if (routeStopsKeyRef.current !== keyWhenScheduled) {
         if (debug) console.info('[route] MapView skipped debounced fetch (key changed before fire)')
         return
       }
       const latest = sortedStopsRef.current
       if (debug) {
-        console.info('[route] MapView debounced OSRM run', {
+        console.info('[route] MapView debounced route fetch', {
           key: keyWhenScheduled || '(empty)',
           stopCount: latest.length
         })
       }
       void (async () => {
-        const points = await fetchDrivingRoutePolyline(latest, ac.signal)
-        if (!alive) {
-          if (debug) console.info('[route] MapView ignored stale result (unmounted / key changed)')
+        let points = []
+        try {
+          // No AbortSignal: aborting in-flight routing on effect cleanup was dropping good results when
+          // the route key flickered (empty→stops) or Firestore churned; stale responses are filtered below.
+          points = await fetchDrivingRoutePolyline(latest, undefined)
+        } catch (err) {
+          if (debug) console.warn('[route] MapView route fetch threw', err)
           return
         }
-        if (ac.signal.aborted) {
-          if (debug) console.info('[route] MapView ignored aborted fetch')
+        if (!mapRouteMountedRef.current) {
+          if (debug) console.info('[route] MapView ignored route result (unmounted)')
+          return
+        }
+        if (routeStopsKeyRef.current !== keyWhenScheduled) {
+          if (debug) console.info('[route] MapView ignored stale route result (routeStopsKey changed)')
           return
         }
         if (points.length > 1) {
           if (debug) console.info('[route] MapView applying polyline', { pointCount: points.length })
           setRoutePoints(points)
         } else if (debug) {
-          console.info('[route] MapView not updating state (≤1 point from OSRM)', { pointCount: points.length })
+          console.info('[route] MapView not updating state (≤1 routable point)', { pointCount: points.length })
         }
       })()
-    }, OSRM_FETCH_DEBOUNCE_MS)
+    }, ROUTE_FETCH_DEBOUNCE_MS)
 
     return () => {
-      alive = false
       clearTimeout(timeoutId)
-      ac.abort()
     }
   }, [routeStopsKey])
 
@@ -358,7 +374,10 @@ export default function MapView({
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
       >
-        <TileLayer attribution={MAP_TILE_ATTRIBUTION} url={MAP_TILE_URL} />
+        <TileLayer
+          attribution={`${MAP_TILE_ATTRIBUTION} · ${MAPBOX_ROUTE_ATTRIBUTION}`}
+          url={MAP_TILE_URL}
+        />
         {routeToDraw.length > 1 && (
           <Polyline
             key={polylineKey}

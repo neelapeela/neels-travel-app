@@ -26,7 +26,7 @@ export default function TripToolbar({
   settingsPopover
 }) {
   return (
-    <div className="trip-toolbar">
+    <div className="trip-toolbar" data-trip-tutorial="trip-toolbar">
       <div className="trip-toolbar-left">
         <button
           type="button"

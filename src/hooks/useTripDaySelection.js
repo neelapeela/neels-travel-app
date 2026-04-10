@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from 'react'
-import { getSortMinutes } from '../../../utils/stopTime'
-import { stopHasValidMapCoords } from '../../../utils/osrmRoute'
+import { getSortMinutes } from '../utils/stopTime'
+import { stopHasValidMapCoords } from '../utils/mapboxRoute'
 
 /**
  * Derived day/stop state for the trip page: sorted stops for the map and timeline,

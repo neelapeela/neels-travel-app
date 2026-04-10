@@ -4,6 +4,7 @@ export default function TripIsland({ stopSheetHeight, hasSelectedStop, onFlights
   return (
     <div
       className="trip-island"
+      data-trip-tutorial="trip-island"
       style={
         hasSelectedStop
           ? {

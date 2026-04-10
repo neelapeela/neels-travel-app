@@ -1667,45 +1667,244 @@
   font-size: 0.9rem;
 }
 
-.setup-modal-content {
-  max-width: 620px;
-}
-
-.setup-modal-form {
-  display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
-}
-
 .setup-subtitle {
   margin: 0;
   color: var(--color-ink-on-sand-muted);
   font-weight: 300;
 }
 
-.setup-field-card {
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  padding: 0.8rem;
-  background: color-mix(in srgb, var(--palette-sand) 93%, #fff 7%);
+/* Trip workspace tutorial — dim backdrop, highlight ring, anchored popover + arrow */
+.trip-tutorial-root {
+  position: fixed;
+  inset: 0;
+  z-index: 1595;
+  pointer-events: none;
 }
 
-.setup-field-card label {
-  display: block;
-  font-weight: 500;
-  margin-bottom: 0.25rem;
-  color: var(--color-ink-on-sand);
+.trip-tutorial-root .trip-tutorial-backdrop,
+.trip-tutorial-root .trip-onboarding-popover {
+  pointer-events: auto;
 }
 
-.setup-field-card small {
-  display: block;
-  color: var(--color-ink-on-sand-muted);
-  margin-bottom: 0.5rem;
-  font-weight: 300;
+.trip-tutorial-backdrop {
+  position: fixed;
+  inset: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+  background: rgba(31, 53, 50, 0.55);
+  z-index: 1596;
+  cursor: pointer;
 }
 
-.setup-actions {
-  margin-top: 0.3rem;
+/* Rounded-rect hole matches highlight ring — no bright wedges at rounded corners */
+.trip-tutorial-svg-dim {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1596;
+  pointer-events: none;
+}
+
+.trip-tutorial-svg-dim__hit {
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+/* Same box + rx as SVG mask hole — terracotta frame hugging the component silhouette */
+.trip-tutorial-ring {
+  position: fixed;
+  z-index: 1598;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 3px solid var(--palette-terra-cotta);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--palette-terra-cotta) 35%, rgba(0, 0, 0, 0.45));
+}
+
+.trip-onboarding-card {
+  width: 100%;
+  max-width: 28rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  box-sizing: border-box;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--trip-toolbar-border);
+  box-shadow:
+    var(--trip-toolbar-shadow),
+    0 12px 40px rgba(0, 0, 0, 0.18);
+  background: var(--color-surface);
+  position: relative;
+  max-height: min(72vh, 26rem);
+  overflow-y: auto;
+}
+
+.trip-onboarding-popover--center {
+  max-width: min(28rem, calc(100vw - 1.5rem));
+}
+
+.trip-onboarding-popover__arrow {
+  position: absolute;
+  width: 0;
+  height: 0;
+  z-index: 1;
+}
+
+.trip-onboarding-popover--bottom .trip-onboarding-popover__arrow {
+  top: -9px;
+  left: var(--trip-onboarding-arrow-x, 50%);
+  transform: translateX(-50%);
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-bottom: 10px solid var(--color-surface);
+  filter: drop-shadow(0 -1px 0 color-mix(in srgb, var(--trip-toolbar-border) 80%, transparent));
+}
+
+.trip-onboarding-popover--top .trip-onboarding-popover__arrow {
+  bottom: -9px;
+  left: var(--trip-onboarding-arrow-x, 50%);
+  transform: translateX(-50%);
+  border-left: 9px solid transparent;
+  border-right: 9px solid transparent;
+  border-top: 10px solid var(--color-surface);
+  filter: drop-shadow(0 1px 0 color-mix(in srgb, var(--trip-toolbar-border) 80%, transparent));
+}
+
+.trip-onboarding-popover--right .trip-onboarding-popover__arrow {
+  left: -9px;
+  top: var(--trip-onboarding-arrow-y, 50%);
+  transform: translateY(-50%);
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  border-right: 10px solid var(--color-surface);
+  filter: drop-shadow(-1px 0 0 color-mix(in srgb, var(--trip-toolbar-border) 80%, transparent));
+}
+
+.trip-onboarding-popover--left .trip-onboarding-popover__arrow {
+  right: -9px;
+  top: var(--trip-onboarding-arrow-y, 50%);
+  transform: translateY(-50%);
+  border-top: 9px solid transparent;
+  border-bottom: 9px solid transparent;
+  border-left: 10px solid var(--color-surface);
+  filter: drop-shadow(1px 0 0 color-mix(in srgb, var(--trip-toolbar-border) 80%, transparent));
+}
+
+.trip-onboarding-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+}
+
+.trip-onboarding-step {
+  font-family: var(--font-ui);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-ink-muted);
+}
+
+.trip-onboarding-skip {
+  border: none;
+  background: transparent;
+  font-family: var(--font-ui);
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--palette-terra-cotta);
+  cursor: pointer;
+  padding: 0.25rem 0.35rem;
+  border-radius: var(--radius-sm);
+}
+
+.trip-onboarding-skip:hover {
+  text-decoration: underline;
+}
+
+.trip-onboarding-title {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--color-ink);
+  line-height: 1.25;
+}
+
+.trip-onboarding-body {
+  margin: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  font-family: var(--font-ui);
+  font-size: 0.98rem;
+  line-height: 1.55;
+  color: var(--color-ink-muted);
+  font-weight: 400;
+}
+
+.trip-onboarding-dots {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  justify-content: center;
+  align-items: center;
+}
+
+.trip-onboarding-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--palette-sea) 35%, var(--color-border) 65%);
+  cursor: pointer;
+  transition:
+    transform var(--duration-normal) var(--ease-out),
+    background var(--duration-normal) var(--ease-out);
+}
+
+.trip-onboarding-dot:hover {
+  transform: scale(1.15);
+}
+
+.trip-onboarding-dot--active {
+  background: var(--palette-terra-cotta);
+  transform: scale(1.2);
+}
+
+.trip-onboarding-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  margin-top: var(--space-xs);
+}
+
+.trip-onboarding-btn {
+  font-family: var(--font-ui);
+  font-size: 0.95rem;
+  font-weight: 600;
+  padding: 0.55rem 1.1rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.trip-onboarding-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.trip-onboarding-btn--secondary {
+  background: transparent;
+  border-color: var(--trip-rim);
+  color: var(--color-ink-muted);
+}
+
+.trip-onboarding-btn--primary {
+  background: var(--palette-terra-cotta);
+  border-color: color-mix(in srgb, var(--palette-terra-cotta) 70%, #000 30%);
+  color: var(--color-primary-action-text, #fff);
 }
 
 .flights-modal-content,

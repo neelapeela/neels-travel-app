@@ -48,7 +48,7 @@ export const createTripForUser = async (userId, tripData) => {
       endDate: tripData.endDate,
       description: tripData.description || '',
       notes: tripData.notes || '',
-      setupCompleted: false,
+      setupCompleted: true,
       inviteCode,
       itinerary: itinerary,
       createdAt: new Date().toISOString(),

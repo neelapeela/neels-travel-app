@@ -1,8 +1,8 @@
 /** How long “Code copied” / “Link copied” stays visible in the share menu. */
 export const SHARE_FEEDBACK_CLEAR_MS = 1500
 
-/** Delay before calling OSRM so Firestore snapshot churn does not abort every in-flight route request. */
-export const OSRM_FETCH_DEBOUNCE_MS = 350
+/** Delay before calling Mapbox Directions so Firestore snapshot churn does not stack redundant fetches. */
+export const ROUTE_FETCH_DEBOUNCE_MS = 350
 
 /**
  * Raster basemap: Carto **Voyager** — softer and more “travel guide” than Positron (`light_all`),
@@ -13,6 +13,10 @@ export const MAP_TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyag
 
 export const MAP_TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+
+/** Mapbox Directions (see `mapboxRoute.js`); required when using Mapbox APIs. */
+export const MAPBOX_ROUTE_ATTRIBUTION =
+  '<a href="https://www.mapbox.com/about/maps/">© Mapbox</a>'
 
 /** Never leave the map pane blank while destination geocoding is pending/fails. */
 export const MAP_FALLBACK_CENTER = { lat: 37.7749, lng: -122.4194 }
