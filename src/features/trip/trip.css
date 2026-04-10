@@ -780,6 +780,10 @@
   position: relative;
 }
 
+.timeline-stop--touch-hidden {
+  opacity: 0;
+}
+
 .timeline-stop-ghost {
   position: fixed;
   left: 0;
@@ -926,8 +930,8 @@
   }
 
   .timeline-row {
-    flex-wrap: nowrap;
-    align-items: center;
+    flex-wrap: wrap;
+    align-items: flex-start;
     gap: var(--space-sm);
   }
 
@@ -940,27 +944,22 @@
   .timeline-stops {
     flex: 1 1 auto;
     min-width: 0;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
-    /* `overflow-x: scroll` keeps a stable scroll layer on iOS; `auto` can defer creation. */
-    overflow-x: scroll;
+    overflow-x: hidden;
     overflow-y: hidden;
-    overscroll-behavior-x: contain;
+    overscroll-behavior-x: none;
     overscroll-behavior-y: auto;
-    /* Let the browser assign panning (don’t lock to pan-x only — fights diagonal starts on pills). */
-    touch-action: auto;
+    touch-action: pan-y;
     scrollbar-width: thin;
     padding: 0.35rem 0;
-    -webkit-overflow-scrolling: touch;
     user-select: none;
     -webkit-user-select: none;
-    /* Promote compositing — smoother horizontal tracking on iOS */
-    transform: translateZ(0);
   }
 
-  /* Pills: `manipulation` = pan + pinch, no double-tap zoom wait; works better than pan-x-only inside a scroller */
+  /* Drag should own touch gestures on pills for reliable mobile DnD. */
   .timeline-stop {
-    touch-action: manipulation;
+    touch-action: none;
   }
 
   /* Stop details: centered modal over dimmed map/timeline (not a bottom sheet). */
