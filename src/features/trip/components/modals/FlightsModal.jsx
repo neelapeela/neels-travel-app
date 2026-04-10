@@ -7,6 +7,7 @@ export default function FlightsModal({
   onLookup,
   flightLookupPreview,
   onFlightPreviewChange,
+  onRemoveFlightPreview,
   addedFlights,
   onDeleteFlight,
   onCreateStops,
@@ -36,21 +37,44 @@ export default function FlightsModal({
           </button>
           {flightLookupError && <p className="join-error">{flightLookupError}</p>}
           {flightLookupPreview.length > 0 && (
-            <div className="flights-preview">
-              {flightLookupPreview.map((flight) => (
-                <div key={flight.id} className="flight-preview-card">
-                  <div className="flight-preview-header">
-                    <label>
-                      <input
-                        type="checkbox"
-                        checked={Boolean(flight.selected)}
-                        onChange={(event) =>
-                          onFlightPreviewChange(flight.id, { selected: event.target.checked })
-                        }
-                      />
-                      Add this flight
-                    </label>
-                  </div>
+            <div className="flights-preview-section">
+              <h4 className="flights-preview-section__title">Lookup results</h4>
+              <p className="flights-preview-section__hint">
+                Each block is one flight — edit details or remove flights you do not want.
+              </p>
+              <div className="flights-preview" role="list">
+                {flightLookupPreview.map((flight, index) => (
+                  <div
+                    key={flight.id}
+                    className="flight-preview-card"
+                    role="listitem"
+                    aria-label={`Flight ${index + 1}${flight.flightNumber ? `, ${flight.flightNumber}` : ''}`}
+                  >
+                    <div className="flight-preview-card__head">
+                      <span className="flight-preview-index" aria-hidden="true">
+                        {index + 1}
+                      </span>
+                      <div className="flight-preview-header">
+                        <label>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(flight.selected)}
+                            onChange={(event) =>
+                              onFlightPreviewChange(flight.id, { selected: event.target.checked })
+                            }
+                          />
+                          Add this flight
+                        </label>
+                        <button
+                          type="button"
+                          className="flight-preview-delete"
+                          onClick={() => onRemoveFlightPreview(flight.id)}
+                          aria-label={`Remove ${flight.flightNumber || 'flight'} from lookup results`}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
                   <input
                     value={flight.flightNumber || ''}
                     onChange={(event) =>
@@ -104,20 +128,30 @@ export default function FlightsModal({
                       }
                     />
                   </div>
-                </div>
-              ))}
+                  </div>
+                ))}
+              </div>
             </div>
           )}
-          <h4>Currently Added Flights (Trip-wide)</h4>
-          {addedFlights.length === 0 && <p className="setup-subtitle">No flights added yet.</p>}
-          {addedFlights.map((flight) => (
-            <div key={flight.code} className="participant-row">
-              <span>{flight.code}</span>
-              <button type="button" onClick={() => onDeleteFlight(flight.code)}>
-                Delete
-              </button>
-            </div>
-          ))}
+          <div className="flights-added-section">
+            <h4 className="flights-added-section__title">Currently added flights (trip-wide)</h4>
+            {addedFlights.length === 0 && <p className="setup-subtitle">No flights added yet.</p>}
+            {addedFlights.length > 0 && (
+              <ul className="flights-added-list" role="list">
+                {addedFlights.map((flight, index) => (
+                  <li key={flight.code} className="flight-added-row">
+                    <span className="flight-added-row__index" aria-hidden="true">
+                      {index + 1}
+                    </span>
+                    <span className="flight-added-row__code">{flight.code}</span>
+                    <button type="button" className="flight-added-row__delete" onClick={() => onDeleteFlight(flight.code)}>
+                      Delete
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
           <div className="modal-actions">
             <button type="button" onClick={onClose}>
               Cancel

@@ -402,6 +402,10 @@ export default function TripPage() {
     )
   }
 
+  const handleRemoveFlightPreview = (flightId) => {
+    setFlightLookupPreview((prev) => prev.filter((flight) => flight.id !== flightId))
+  }
+
   const getDefaultLodgingForm = () => {
     if (!trip?.itinerary?.length) {
       return {
@@ -606,10 +610,12 @@ export default function TripPage() {
         shareCopied={shareCopied}
         onCopyShareCode={handleCopyShareCode}
         onCopyShareLink={handleCopyShareLink}
+        showTimePanel={showTimePanel}
         setShowTimePanel={setShowTimePanel}
         settingsPopover={
           showSettingsModal ? (
             <TripSettingsPopover
+              tripName={trip?.name}
               tripNotesDraft={tripNotesDraft}
               onTripNotesDraftChange={setTripNotesDraft}
               onSaveTripSettings={handleSaveTripSettings}
@@ -734,10 +740,13 @@ export default function TripPage() {
           onLookup={handleFlightLookup}
           flightLookupPreview={flightLookupPreview}
           onFlightPreviewChange={handleFlightPreviewChange}
+          onRemoveFlightPreview={handleRemoveFlightPreview}
           addedFlights={addedFlights}
           onDeleteFlight={handleDeleteFlight}
           onCreateStops={handleAddFlightStops}
-          createDisabled={flightLookupPreview.length === 0}
+          createDisabled={
+            flightLookupPreview.length === 0 || !flightLookupPreview.some((f) => f.selected)
+          }
         />
       )}
 

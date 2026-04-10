@@ -21,6 +21,7 @@ export default function TripToolbar({
   shareCopied,
   onCopyShareCode,
   onCopyShareLink,
+  showTimePanel,
   setShowTimePanel,
   settingsPopover
 }) {
@@ -98,9 +99,11 @@ export default function TripToolbar({
 
         <button
           type="button"
-          className="trip-tool-button"
+          className={`trip-tool-button${showTimePanel ? ' trip-tool-button--time-panel-active' : ''}`}
           onClick={() => setShowTimePanel((prev) => !prev)}
-          aria-label="Open time panel"
+          aria-label={showTimePanel ? 'Hide day timeline' : 'Show day timeline'}
+          aria-pressed={showTimePanel}
+          title={showTimePanel ? 'Hide timeline' : 'Show timeline'}
         >
           <BsClock />
         </button>

@@ -1,4 +1,5 @@
 export default function TripSettingsPopover({
+  tripName,
   tripNotesDraft,
   onTripNotesDraftChange,
   onSaveTripSettings,
@@ -17,10 +18,19 @@ export default function TripSettingsPopover({
     return 'Member'
   }
 
+  const displayName = (tripName || '').trim() || 'Untitled trip'
+
   return (
-    <div className="inline-popover trip-settings-popover" role="dialog" aria-label="Trip settings">
+    <div
+      className="inline-popover trip-settings-popover"
+      role="dialog"
+      aria-label={`Trip settings: ${displayName}`}
+    >
       <div className="inline-popover-header">
-        <h3>Trip Settings</h3>
+        <div className="trip-settings-header-text">
+          <h3>Trip Settings</h3>
+          <p className="trip-settings-trip-name">{displayName}</p>
+        </div>
         <button type="button" className="modal-close-button" onClick={onClose} aria-label="Close">
           ×
         </button>

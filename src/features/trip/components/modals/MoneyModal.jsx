@@ -75,7 +75,7 @@ export default function MoneyModal({
               ) : null}
               <p className="money-modal-hint">
                 Amounts below are <strong>for you only</strong>: how each other traveler would settle
-                up with you if everyone split total spend equally—one valid way to clear group balances
+                up with you if everyone split total spend equally.
                 (who pays whom in the minimal plan).
               </p>
               {paymentOverviewVsYou.kind === 'empty' ? (
