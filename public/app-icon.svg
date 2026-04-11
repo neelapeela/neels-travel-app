@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Neel's Travel Book">
+  <rect width="512" height="512" rx="96" fill="#1f3532"/>
+  <path fill="#e9e2d6" d="M128 144h256v48H128zm0 88h200v32H128zm0 72h240v32H128zm0 72h176v32H128z"/>
+  <circle cx="352" cy="296" r="56" fill="none" stroke="#c4a035" stroke-width="20"/>
+  <path fill="#c4a035" d="M352 248v32l24 16"/>
+</svg>
