@@ -7,7 +7,7 @@ const POPOVER_W = 300
 const STEPS = [
   {
     title: 'Bear with me, please. Lock in.',
-    body: 'You need to understand why you NEED this',
+    body: 'You need to understand why you NEED this.',
     target: null
   },
   {

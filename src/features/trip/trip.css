@@ -910,6 +910,11 @@
   .trip-map-column {
     width: 100%;
     min-height: 0;
+    /* Lighter than desktop --shadow-card so the band above the timeline feels less heavy */
+    box-shadow:
+      0 2px 12px rgba(10, 28, 26, 0.12),
+      0 1px 4px rgba(10, 28, 26, 0.06),
+      inset 0 1px 0 rgba(233, 226, 214, 0.06);
   }
 
   /* Map-only day: let the map column breathe; with timeline, band height below. */
@@ -974,10 +979,22 @@
     display: block;
     box-sizing: border-box;
     border-radius: var(--radius-sm);
+    overflow: visible;
   }
 
   .trip-timeline-split-handle:active {
     cursor: ns-resize;
+  }
+
+  /* Invisible vertical slop (~44px) so drags register easily; layout height stays 12px. */
+  .trip-timeline-split-handle::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: -16px;
+    bottom: -16px;
+    z-index: 0;
   }
 
   .trip-timeline-split-handle::before {
@@ -992,7 +1009,8 @@
     background: color-mix(in srgb, var(--palette-terra-cotta) 45%, var(--trip-timeline-rim) 55%);
     opacity: 0.88;
     pointer-events: none;
-    box-shadow: 0 1px 2px rgba(31, 53, 50, 0.12);
+    box-shadow: 0 1px 2px rgba(31, 53, 50, 0.1);
+    z-index: 1;
   }
 
   .trip-timeline-split-handle:hover::before,

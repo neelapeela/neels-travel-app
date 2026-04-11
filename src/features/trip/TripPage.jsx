@@ -33,6 +33,7 @@ import { useRequestCache } from '../../hooks/useRequestCache'
 import { useTripDaySelection } from '../../hooks/useTripDaySelection'
 import { normalizeTimeInput } from '../../utils/stopTime'
 import { isDateWithinRange, formatDateHeading } from '../../utils/tripDates'
+import { hasSeenTripTutorial, markTripTutorialSeen } from '../../utils/tripTutorialStorage'
 import { SHARE_FEEDBACK_CLEAR_MS } from './constants'
 import { BsChevronLeft, BsChevronRight } from 'react-icons/bs'
 import TripToolbar from './components/TripToolbar'
@@ -217,18 +218,23 @@ export default function TripPage() {
   }, [trip?.notes])
 
   useEffect(() => {
-    if (!tripId || !trip?.id) {
+    if (!tripId || !trip?.id || !user?.uid) {
+      setShowTripOnboarding(false)
+      return
+    }
+    if (hasSeenTripTutorial(user.uid)) {
       setShowTripOnboarding(false)
       return
     }
     setShowTripOnboarding(true)
-  }, [tripId, trip?.id])
+  }, [tripId, trip?.id, user?.uid])
 
   useEffect(() => {
     if (showTripOnboarding) setShowTimePanel(true)
   }, [showTripOnboarding])
 
   const dismissTripOnboarding = () => {
+    markTripTutorialSeen(user?.uid)
     setShowTripOnboarding(false)
   }
 
@@ -838,7 +844,6 @@ export default function TripPage() {
       />
 
       <TripOnboardingCarousel
-        key={tripId}
         open={showTripOnboarding}
         onDismiss={dismissTripOnboarding}
         showTimePanel={showTimePanel}
