@@ -11,10 +11,11 @@ export const ROUTE_FETCH_DEBOUNCE_MS = 350
  */
 export const MAP_TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
 
+/** Reference copy for Carto/OSM — not shown on map (`MapView` uses `attributionControl={false}`). */
 export const MAP_TILE_ATTRIBUTION =
   '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
 
-/** Mapbox Directions (see `mapboxRoute.js`); required when using Mapbox APIs. */
+/** Reference copy for Mapbox Directions (see `mapboxRoute.js`); not shown on map. */
 export const MAPBOX_ROUTE_ATTRIBUTION =
   '<a href="https://www.mapbox.com/about/maps/">© Mapbox</a>'
 

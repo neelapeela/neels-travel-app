@@ -820,9 +820,13 @@ export default function TripPage() {
         />
       )}
 
-      {showStopTicketsModal && selectedStop && (
+      {showStopTicketsModal && selectedStop && selectedDate && (
         <StopTicketsModal
+          tripId={tripId}
+          date={selectedDate}
+          stop={selectedStop}
           stopTitle={selectedStop.title}
+          savesDisabled={savesDisabled}
           onClose={() => setShowStopTicketsModal(false)}
         />
       )}

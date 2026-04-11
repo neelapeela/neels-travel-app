@@ -4,11 +4,7 @@ import L from 'leaflet'
 import { formatStopTime } from '../../../utils/stopTime'
 import { readCoord } from '../../../utils/mapboxRoute'
 import { useDebouncedDrivingRoute } from '../hooks/useDebouncedDrivingRoute'
-import {
-  MAP_TILE_ATTRIBUTION,
-  MAP_TILE_URL,
-  MAPBOX_ROUTE_ATTRIBUTION
-} from '../constants'
+import { MAP_TILE_URL } from '../constants'
 import { FitStopsToView, FlyToSelectedStop, ResizeHandler } from './map/leafletMapLayers'
 import {
   createLodgingHomeIcon,
@@ -77,10 +73,7 @@ function MapInner({
 
   return (
     <>
-      <TileLayer
-        attribution={`${MAP_TILE_ATTRIBUTION} · ${MAPBOX_ROUTE_ATTRIBUTION}`}
-        url={MAP_TILE_URL}
-      />
+      <TileLayer attribution="" url={MAP_TILE_URL} />
       {routeToDraw.length > 1 && (
         <Polyline
           key={polylineKey}
@@ -131,6 +124,7 @@ export default function MapView({
         zoom={13}
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
+        attributionControl={false}
       >
         <MapInner
           coordinates={coordinates}
