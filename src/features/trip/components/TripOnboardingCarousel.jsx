@@ -7,7 +7,7 @@ const POPOVER_W = 300
 const STEPS = [
   {
     title: 'Bear with me, please. Lock in.',
-    body: 'This short tour points at each part of the workspace so you see how planning, the map, and shared costs fit together.',
+    body: 'You need to understand why you NEED this',
     target: null
   },
   {
@@ -17,12 +17,12 @@ const STEPS = [
   },
   {
     title: 'Map & stops',
-    body: 'Pins show stops with a location. Tap a pin or a timeline pill to open the stop card—view details, edit, or attach expenses.',
+    body: 'Pins show stops with a location. Tap a pin or a timeline pill to open the stop card andview details, edit, or attach expenses.',
     target: 'trip-map'
   },
   {
     title: 'Timeline',
-    body: 'Hours for the selected day live here. Tap a time to add a stop. Drag to reorder (on desktop); on touch, press and drag after the short hold.',
+    body: 'Hours for the selected day live here. Tap a time to add a stop. Drag to reorder.',
     target: 'trip-timeline'
   },
   {
