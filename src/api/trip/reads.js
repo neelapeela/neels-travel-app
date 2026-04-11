@@ -1,6 +1,7 @@
 import { doc, getDoc, onSnapshot } from 'firebase/firestore'
 import { db } from '../firebase'
 import { normalizeDay, normalizeParticipants } from './normalize'
+import { deleteTripSnapshot, putTripSnapshot } from '../../utils/tripReadCache'
 
 export const getTripById = async (tripId) => {
   if (!tripId) return null
@@ -16,20 +17,30 @@ export const getTripById = async (tripId) => {
   }
 }
 
+/**
+ * @param {string} tripId
+ * @param {(trip: object | null, meta: { fromCache: boolean }) => void} callback
+ */
 export const subscribeToTripById = (tripId, callback) => {
   if (!tripId) return () => {}
   const tripRef = doc(db, 'trips', tripId)
   return onSnapshot(tripRef, (snapshot) => {
+    const fromCache = snapshot.metadata.fromCache
     if (!snapshot.exists()) {
-      callback(null)
+      void deleteTripSnapshot(tripId)
+      callback(null, { fromCache })
       return
     }
     const tripData = snapshot.data()
-    callback({
+    const trip = {
       ...tripData,
       participants: normalizeParticipants(tripData),
       itinerary: (tripData.itinerary || []).map(normalizeDay)
-    })
+    }
+    if (!fromCache) {
+      void putTripSnapshot(tripId, trip)
+    }
+    callback(trip, { fromCache })
   })
 }
 

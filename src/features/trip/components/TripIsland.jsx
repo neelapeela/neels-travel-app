@@ -1,6 +1,13 @@
 import { BsAirplane, BsCash, BsHouseDoor } from 'react-icons/bs'
 
-export default function TripIsland({ stopSheetHeight, hasSelectedStop, onFlights, onLodging, onMoney }) {
+export default function TripIsland({
+  stopSheetHeight,
+  hasSelectedStop,
+  onFlights,
+  onLodging,
+  onMoney,
+  savesDisabled = false
+}) {
   return (
     <div
       className="trip-island"
@@ -13,13 +20,34 @@ export default function TripIsland({ stopSheetHeight, hasSelectedStop, onFlights
           : undefined
       }
     >
-      <button type="button" className="trip-tool-button" onClick={onFlights}>
+      <button
+        type="button"
+        className="trip-tool-button"
+        onClick={onFlights}
+        disabled={savesDisabled}
+        title={savesDisabled ? 'Connect to use flights' : undefined}
+        aria-label="Flights"
+      >
         <BsAirplane />
       </button>
-      <button type="button" className="trip-tool-button" onClick={onLodging}>
+      <button
+        type="button"
+        className="trip-tool-button"
+        onClick={onLodging}
+        disabled={savesDisabled}
+        title={savesDisabled ? 'Connect to use lodging' : undefined}
+        aria-label="Lodging"
+      >
         <BsHouseDoor />
       </button>
-      <button type="button" className="trip-tool-button" onClick={onMoney}>
+      <button
+        type="button"
+        className="trip-tool-button"
+        onClick={onMoney}
+        disabled={savesDisabled}
+        title={savesDisabled ? 'Connect to use money' : undefined}
+        aria-label="Money"
+      >
         <BsCash />
       </button>
     </div>

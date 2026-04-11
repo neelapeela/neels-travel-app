@@ -14,12 +14,14 @@ export default function ItineraryView({
   selectedStopId,
   onSelectStop,
   onMoveStop,
-  onTimestampClick
+  onTimestampClick,
+  savesDisabled = false
 }) {
   const [allowDragReorder, setAllowDragReorder] = useState(false)
   const { touchHeldId, touchGhost, touchHiddenId, handleStopPointerDown } = useTouchPillDrag({
     stops,
-    onMoveStop
+    onMoveStop,
+    disabled: savesDisabled
   })
   useEffect(() => {
     const mq = window.matchMedia('(pointer: fine)')
@@ -55,9 +57,11 @@ export default function ItineraryView({
       <div className="itinerary-header">
         <h3 className="itinerary-header__title">Day timeline</h3>
         <p className="itinerary-header__hint">
-          {allowDragReorder
-            ? 'Tap a time to add a stop · drag stops between hours'
-            : 'Tap a time to add a stop · tap a stop to view details'}
+          {savesDisabled
+            ? 'Offline — view only; reconnect to add stops or reorder'
+            : allowDragReorder
+              ? 'Tap a time to add a stop · drag stops between hours'
+              : 'Tap a time to add a stop · tap a stop to view details'}
         </p>
       </div>
       <div className="timeline">
@@ -71,13 +75,15 @@ export default function ItineraryView({
               type="button"
               className="timeline-label timeline-label-button"
               onClick={() => handleTimestampClick(slot.hour)}
+              disabled={savesDisabled}
+              title={savesDisabled ? 'Connect to add a stop at this time' : undefined}
             >
               {formatHour(slot.hour)}
             </button>
             <div
               className="timeline-stops"
-              onDragOver={handleDragOver}
-              onDrop={(event) => handleDrop(event, slot.hour)}
+              onDragOver={savesDisabled ? undefined : handleDragOver}
+              onDrop={savesDisabled ? undefined : (event) => handleDrop(event, slot.hour)}
             >
               {slot.stops.length === 0 && <span className="timeline-empty">-</span>}
               {slot.stops.map((stop) => (
@@ -87,7 +93,7 @@ export default function ItineraryView({
                   className={`timeline-stop ${selectedStopId === stop.id ? 'active' : ''}${
                     touchHeldId === stop.id ? ' timeline-stop--touch-lifted' : ''
                   }${touchHiddenId === stop.id ? ' timeline-stop--touch-hidden' : ''}`}
-                  draggable={allowDragReorder}
+                  draggable={allowDragReorder && !savesDisabled}
                   onDragStart={(event) => {
                     event.dataTransfer.setData('text/plain', stop.id)
                     event.dataTransfer.effectAllowed = 'move'

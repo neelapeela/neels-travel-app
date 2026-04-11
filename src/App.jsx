@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { OfflineProvider } from './context/OfflineContext'
 import Layout from './components/Layout'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
@@ -11,6 +12,7 @@ function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <OfflineProvider>
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<Navigate to="/login" replace />} />
@@ -34,6 +36,7 @@ function App() {
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Route>
         </Routes>
+        </OfflineProvider>
       </AuthProvider>
     </BrowserRouter>
   )

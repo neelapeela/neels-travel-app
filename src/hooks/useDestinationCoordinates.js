@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { geocodeLocation } from '../api/trip'
 import { MAP_FALLBACK_CENTER } from '../features/trip/constants'
+import { isBrowserOnline } from '../utils/networkStatus'
 
 export function useDestinationCoordinates(destination) {
   const [coordinates, setCoordinates] = useState(MAP_FALLBACK_CENTER)
@@ -10,6 +11,10 @@ export function useDestinationCoordinates(destination) {
 
     const load = async () => {
       if (!destination) {
+        setCoordinates(MAP_FALLBACK_CENTER)
+        return
+      }
+      if (!isBrowserOnline()) {
         setCoordinates(MAP_FALLBACK_CENTER)
         return
       }

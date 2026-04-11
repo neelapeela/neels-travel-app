@@ -1,258 +1,116 @@
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet'
-import { useEffect, useMemo, useRef, useState } from 'react'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
-import { formatStopTime, getSortMinutes } from '../../../utils/stopTime'
-import {
-  fetchDrivingRoutePolyline,
-  readCoord,
-  stopHasValidMapCoords,
-  straightLinePositions
-} from '../../../utils/mapboxRoute'
-import '../trip.css'
+import { formatStopTime } from '../../../utils/stopTime'
+import { readCoord } from '../../../utils/mapboxRoute'
+import { useDebouncedDrivingRoute } from '../hooks/useDebouncedDrivingRoute'
 import {
   MAP_TILE_ATTRIBUTION,
   MAP_TILE_URL,
-  MAPBOX_ROUTE_ATTRIBUTION,
-  ROUTE_FETCH_DEBOUNCE_MS
+  MAPBOX_ROUTE_ATTRIBUTION
 } from '../constants'
+import { FitStopsToView, FlyToSelectedStop, ResizeHandler } from './map/leafletMapLayers'
+import {
+  createLodgingHomeIcon,
+  createSpecialIcon,
+  createStopIcon,
+  numberedStopOrder
+} from './map/markerIcons'
+import '../trip.css'
 
-// Fix for default marker icons
+/**
+ * Popup content is portaled outside React-Leaflet context, so the map is passed from `MapInner`
+ * (which calls `useMap()` under `MapContainer`).
+ */
+function StopPopupBody({ stop, onSelectStop, leafletMap }) {
+  const title = stop.title || 'Stop'
+  const timeLine = formatStopTime(stop.stopTime, stop.timestampHour)
+  const locationLine = stop.location || 'Address not provided'
+
+  if (!onSelectStop) {
+    return (
+      <>
+        <div><strong>{title}</strong></div>
+        <div>{locationLine}</div>
+        <div>{timeLine}</div>
+      </>
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      className="map-view__stop-popup-btn"
+      aria-label={`Open details for ${title}`}
+      onClick={() => {
+        onSelectStop(stop.id)
+        leafletMap?.closePopup()
+      }}
+    >
+      <span className="map-view__stop-popup-btn__title"><strong>{title}</strong></span>
+      <span className="map-view__stop-popup-btn__meta">{locationLine}</span>
+      <span className="map-view__stop-popup-btn__meta">{timeLine}</span>
+    </button>
+  )
+}
+
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
   iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
-  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png'
 })
 
-function ResizeHandler({ shouldResizeMap, layoutResizeKey }) {
-  const map = useMap()
-  useEffect(() => {
-    map.invalidateSize()
-  }, [map, shouldResizeMap, layoutResizeKey])
-  return null
-}
+function MapInner({
+  coordinates,
+  shouldResizeMap,
+  layoutResizeKey,
+  sortedStops,
+  routeToDraw,
+  polylineKey,
+  focusStop,
+  focusLeftPaddingPx,
+  fitViewKey,
+  onSelectStop
+}) {
+  const leafletMap = useMap()
 
-const FLY_ZOOM = 17
-
-/** Left inset used for visible map area to the right of floating stop card. */
-function effectiveLeftPadPx(map, rawPad) {
-  if (!rawPad || rawPad <= 0) return 0
-  const size = map.getSize()
-  const pad = Math.min(
-    Math.round(rawPad + 16 + rawPad * 0.08),
-    Math.floor(size.x * 0.75),
-    size.x - 80
+  return (
+    <>
+      <TileLayer
+        attribution={`${MAP_TILE_ATTRIBUTION} · ${MAPBOX_ROUTE_ATTRIBUTION}`}
+        url={MAP_TILE_URL}
+      />
+      {routeToDraw.length > 1 && (
+        <Polyline
+          key={polylineKey}
+          positions={routeToDraw}
+          pathOptions={{ color: '#8B6F5A', weight: 5, opacity: 0.92 }}
+        />
+      )}
+      {sortedStops.map((stop, index) => (
+        <Marker
+          key={stop.id}
+          position={[readCoord(stop.latitude), readCoord(stop.longitude)]}
+          icon={
+            stop.stopType === 'flight'
+              ? createSpecialIcon('✈')
+              : stop.stopType === 'lodging'
+                ? createLodgingHomeIcon()
+                : createStopIcon(numberedStopOrder(sortedStops, index))
+          }
+        >
+          <Popup>
+            <StopPopupBody stop={stop} onSelectStop={onSelectStop} leafletMap={leafletMap} />
+          </Popup>
+        </Marker>
+      ))}
+      <FitStopsToView coordinates={coordinates} stops={sortedStops} fitViewKey={fitViewKey} />
+      <FlyToSelectedStop focusStop={focusStop} focusLeftPaddingPx={focusLeftPaddingPx} />
+      <ResizeHandler shouldResizeMap={shouldResizeMap} layoutResizeKey={layoutResizeKey} />
+    </>
   )
-  if (pad <= 0 || size.x - pad < 88) return 0
-  return pad
 }
-
-/**
- * Map center (lat/lng) such that `latlng` appears in the center of the visible area to the right of
- * the floating stop card — one smooth
- * `flyTo` instead of fly-to-center + abrupt `panBy`.
- */
-function offsetCenterLatLngForFloatingCard(map, latlng, zoom, rawPad) {
-  const size = map.getSize()
-  const pad = effectiveLeftPadPx(map, rawPad)
-  if (pad <= 0) return latlng
-
-  const visibleW = size.x - pad
-  const target = L.point(pad + visibleW / 2, size.y / 2)
-  const viewHalf = size.divideBy(2)
-  const stopPx = map.project(latlng, zoom)
-  const newCenterPx = stopPx.subtract(target.subtract(viewHalf))
-  return map.unproject(newCenterPx, zoom)
-}
-
-function FitStopsToView({ coordinates, stops, fitViewKey }) {
-  const map = useMap()
-  const lastFitKeyRef = useRef('')
-
-  const fitStops = useMemo(
-    () =>
-      (stops || []).filter(
-        (s) => Number.isFinite(Number(s?.latitude)) && Number.isFinite(Number(s?.longitude))
-      ),
-    [stops]
-  )
-
-  useEffect(() => {
-    const key = fitStops
-      .map((s) => `${s.id}:${Number(s.latitude).toFixed(5)},${Number(s.longitude).toFixed(5)}`)
-      .join('|')
-    const combinedKey = `${fitViewKey || ''}::${key}`
-    if (!key) {
-      // Reset de-dupe state for no-stop days so returning to a prior stop day refits correctly.
-      lastFitKeyRef.current = `${fitViewKey || ''}::(empty)`
-      return
-    }
-    if (combinedKey === lastFitKeyRef.current) return
-    map.stop()
-    lastFitKeyRef.current = combinedKey
-
-    const latLngs = fitStops.map((s) => L.latLng(Number(s.latitude), Number(s.longitude)))
-    if (latLngs.length === 1) {
-      map.flyTo(latLngs[0], Math.max(map.getZoom(), 14), { duration: 0.45, animate: true })
-      return
-    }
-
-    const bounds = L.latLngBounds(latLngs)
-    map.fitBounds(bounds, {
-      padding: [44, 44],
-      animate: true,
-      duration: 0.5,
-      maxZoom: 15
-    })
-  }, [map, fitStops, fitViewKey])
-
-  useEffect(() => {
-    if (!coordinates) return
-    if (fitStops.length > 0) return
-    map.setView(coordinates, 13, { animate: false })
-  }, [map, coordinates, fitStops.length])
-
-  return null
-}
-
-/**
- * Fly so the stop ends in the visual center of the band above the sheet; padding is ref-backed so the
- * fly effect deps stay stable. Closing the stop flies back to center the pin in the full map.
- */
-function FlyToSelectedStop({ focusStop, focusLeftPaddingPx = 0 }) {
-  const map = useMap()
-  const lastFlyTargetKeyRef = useRef('')
-  const paddingRef = useRef(focusLeftPaddingPx)
-  const flyAnimActiveRef = useRef(false)
-  /** Tracks padding for the current stop so we only run a follow-up fly when inset changes (resize). */
-  const sheetPadForStopRef = useRef({ id: null, pad: null })
-  paddingRef.current = focusLeftPaddingPx
-
-  useEffect(() => {
-    if (focusStop) return undefined
-    lastFlyTargetKeyRef.current = ''
-    sheetPadForStopRef.current = { id: null, pad: null }
-    return undefined
-  }, [map, focusStop])
-
-  /* eslint-disable react-hooks/exhaustive-deps -- flyTo must not depend on full `focusStop` or padding (see module comment). */
-  useEffect(() => {
-    if (!focusStop || !Number.isFinite(focusStop.latitude) || !Number.isFinite(focusStop.longitude)) {
-      lastFlyTargetKeyRef.current = ''
-      return undefined
-    }
-
-    const key = `${focusStop.id}|${focusStop.latitude}|${focusStop.longitude}`
-    if (lastFlyTargetKeyRef.current === key) return undefined
-    lastFlyTargetKeyRef.current = key
-
-    const latlng = L.latLng(focusStop.latitude, focusStop.longitude)
-    sheetPadForStopRef.current = { id: focusStop.id, pad: paddingRef.current }
-
-    let cancelled = false
-    let rafOuter
-    let rafInner
-
-    const onFlyMoveEnd = () => {
-      if (cancelled) return
-      flyAnimActiveRef.current = false
-    }
-
-    const run = () => {
-      if (cancelled) return
-      map.invalidateSize({ pan: false })
-      flyAnimActiveRef.current = true
-      const dest = offsetCenterLatLngForFloatingCard(map, latlng, FLY_ZOOM, paddingRef.current)
-      map.flyTo(dest, FLY_ZOOM, { duration: 0.55, animate: true })
-      map.once('moveend', onFlyMoveEnd)
-    }
-
-    rafOuter = requestAnimationFrame(() => {
-      rafInner = requestAnimationFrame(run)
-    })
-
-    return () => {
-      cancelled = true
-      flyAnimActiveRef.current = false
-      if (rafOuter != null) cancelAnimationFrame(rafOuter)
-      if (rafInner != null) cancelAnimationFrame(rafInner)
-      map.off('moveend', onFlyMoveEnd)
-    }
-  }, [map, focusStop?.id, focusStop?.latitude, focusStop?.longitude])
-  /* eslint-enable react-hooks/exhaustive-deps */
-
-  /* Same stop, inset changed (e.g. sheet resize): short fly to updated offset center. */
-  /* eslint-disable react-hooks/exhaustive-deps */
-  useEffect(() => {
-    if (!focusStop || !Number.isFinite(focusStop.latitude) || !Number.isFinite(focusStop.longitude)) {
-      return undefined
-    }
-    if (focusLeftPaddingPx <= 0) return undefined
-
-    const id = focusStop.id
-    const prev = sheetPadForStopRef.current
-    if (prev.id !== id) return undefined
-    if (prev.pad === focusLeftPaddingPx) return undefined
-
-    sheetPadForStopRef.current = { id, pad: focusLeftPaddingPx }
-
-    const latlng = L.latLng(focusStop.latitude, focusStop.longitude)
-    let cancelled = false
-
-    const onAdjustMoveEnd = () => {
-      flyAnimActiveRef.current = false
-    }
-
-    const runAdjust = () => {
-      if (cancelled) return
-      if (flyAnimActiveRef.current) {
-        requestAnimationFrame(runAdjust)
-        return
-      }
-      map.invalidateSize({ pan: false })
-      flyAnimActiveRef.current = true
-      const dest = offsetCenterLatLngForFloatingCard(map, latlng, FLY_ZOOM, focusLeftPaddingPx)
-      map.once('moveend', onAdjustMoveEnd)
-      map.flyTo(dest, FLY_ZOOM, { duration: 0.28, animate: true })
-    }
-
-    requestAnimationFrame(runAdjust)
-
-    return () => {
-      cancelled = true
-      map.off('moveend', onAdjustMoveEnd)
-      flyAnimActiveRef.current = false
-    }
-  }, [map, focusStop?.id, focusStop?.latitude, focusStop?.longitude, focusLeftPaddingPx])
-  /* eslint-enable react-hooks/exhaustive-deps */
-
-  return null
-}
-
-const createStopIcon = (orderNumber) =>
-  L.divIcon({
-    className: 'custom-stop-marker-wrapper',
-    html: `<div class="custom-stop-marker">${orderNumber}</div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14]
-  })
-
-const createSpecialIcon = (symbol) =>
-  L.divIcon({
-    className: 'custom-stop-marker-wrapper',
-    html: `<div class="custom-stop-marker special">${symbol}</div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14]
-  })
-
-const createLodgingHomeIcon = () =>
-  L.divIcon({
-    className: 'custom-stop-marker-wrapper',
-    html: `<div class="custom-stop-marker special lodging" title="Lodging"><svg class="lodging-marker-home" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg></div>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14]
-  })
 
 export default function MapView({
   coordinates,
@@ -261,110 +119,10 @@ export default function MapView({
   stops,
   focusStop,
   focusLeftPaddingPx = 0,
-  fitViewKey = ''
+  fitViewKey = '',
+  onSelectStop
 }) {
-  const [routePoints, setRoutePoints] = useState([])
-  const sortedStopsRef = useRef([])
-  const routeStopsKeyRef = useRef('')
-  const sortedStops = useMemo(
-    () => [...stops].sort((a, b) => getSortMinutes(a) - getSortMinutes(b)),
-    [stops]
-  )
-
-  const routeStopsKey = useMemo(
-    () =>
-      sortedStops
-        .filter((s) => stopHasValidMapCoords(s))
-        .map((s) => {
-          const lat = readCoord(s.latitude)
-          const lng = readCoord(s.longitude)
-          return `${s.id}:${lat.toFixed(5)},${lng.toFixed(5)}`
-        })
-        .join('|'),
-    [sortedStops]
-  )
-
-  sortedStopsRef.current = sortedStops
-  routeStopsKeyRef.current = routeStopsKey
-
-  const straightFallback = useMemo(() => straightLinePositions(sortedStops), [sortedStops])
-
-  const routeToDraw = routePoints.length > 1 ? routePoints : straightFallback
-
-  const mapRouteMountedRef = useRef(true)
-  useEffect(() => {
-    mapRouteMountedRef.current = true
-    return () => {
-      mapRouteMountedRef.current = false
-    }
-  }, [])
-
-  /* eslint-disable react-hooks/exhaustive-deps -- only refetch when stop coords/ids change (string), not when Firestore replaces the stops array. */
-  useEffect(() => {
-    const debug =
-      (typeof import.meta !== 'undefined' && import.meta.env?.DEV) ||
-      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_ROUTE_DEBUG === 'true')
-
-    const keyWhenScheduled = routeStopsKey
-    setRoutePoints([])
-
-    const stopsSnapshot = sortedStops
-    const nRoutable = stopsSnapshot.filter((s) => stopHasValidMapCoords(s)).length
-
-    if (debug) {
-      console.info('[route] MapView effect', {
-        routeStopsKey: routeStopsKey || '(empty)',
-        sortedStopCount: stopsSnapshot.length,
-        routableStopCount: nRoutable,
-        routeAfterMs: ROUTE_FETCH_DEBOUNCE_MS
-      })
-    }
-
-    const timeoutId = setTimeout(() => {
-      if (routeStopsKeyRef.current !== keyWhenScheduled) {
-        if (debug) console.info('[route] MapView skipped debounced fetch (key changed before fire)')
-        return
-      }
-      const latest = sortedStopsRef.current
-      if (debug) {
-        console.info('[route] MapView debounced route fetch', {
-          key: keyWhenScheduled || '(empty)',
-          stopCount: latest.length
-        })
-      }
-      void (async () => {
-        let points = []
-        try {
-          // No AbortSignal: aborting in-flight routing on effect cleanup was dropping good results when
-          // the route key flickered (empty→stops) or Firestore churned; stale responses are filtered below.
-          points = await fetchDrivingRoutePolyline(latest, undefined)
-        } catch (err) {
-          if (debug) console.warn('[route] MapView route fetch threw', err)
-          return
-        }
-        if (!mapRouteMountedRef.current) {
-          if (debug) console.info('[route] MapView ignored route result (unmounted)')
-          return
-        }
-        if (routeStopsKeyRef.current !== keyWhenScheduled) {
-          if (debug) console.info('[route] MapView ignored stale route result (routeStopsKey changed)')
-          return
-        }
-        if (points.length > 1) {
-          if (debug) console.info('[route] MapView applying polyline', { pointCount: points.length })
-          setRoutePoints(points)
-        } else if (debug) {
-          console.info('[route] MapView not updating state (≤1 routable point)', { pointCount: points.length })
-        }
-      })()
-    }, ROUTE_FETCH_DEBOUNCE_MS)
-
-    return () => {
-      clearTimeout(timeoutId)
-    }
-  }, [routeStopsKey])
-
-  const polylineKey = `${routeStopsKey}#${routePoints.length}`
+  const { sortedStops, routeToDraw, polylineKey } = useDebouncedDrivingRoute(stops)
 
   return (
     <div className="map-view">
@@ -374,41 +132,18 @@ export default function MapView({
         style={{ height: '100%', width: '100%' }}
         scrollWheelZoom={true}
       >
-        <TileLayer
-          attribution={`${MAP_TILE_ATTRIBUTION} · ${MAPBOX_ROUTE_ATTRIBUTION}`}
-          url={MAP_TILE_URL}
+        <MapInner
+          coordinates={coordinates}
+          shouldResizeMap={shouldResizeMap}
+          layoutResizeKey={layoutResizeKey}
+          sortedStops={sortedStops}
+          routeToDraw={routeToDraw}
+          polylineKey={polylineKey}
+          focusStop={focusStop}
+          focusLeftPaddingPx={focusLeftPaddingPx}
+          fitViewKey={fitViewKey}
+          onSelectStop={onSelectStop}
         />
-        {routeToDraw.length > 1 && (
-          <Polyline
-            key={polylineKey}
-            positions={routeToDraw}
-            pathOptions={{ color: '#8B6F5A', weight: 5, opacity: 0.92 }}
-          />
-        )}
-        {sortedStops.map((stop, index) => (
-          <Marker
-            key={stop.id}
-            position={[readCoord(stop.latitude), readCoord(stop.longitude)]}
-            icon={
-              stop.stopType === 'flight'
-                ? createSpecialIcon('✈')
-                : stop.stopType === 'lodging'
-                  ? createLodgingHomeIcon()
-                  : createStopIcon(
-                      sortedStops.filter((item, itemIndex) => item.stopType !== 'flight' && item.stopType !== 'lodging' && itemIndex <= index).length
-                    )
-            }
-          >
-            <Popup>
-              <div><strong>{stop.title}</strong></div>
-              <div>{stop.location || 'Address not provided'}</div>
-              <div>{formatStopTime(stop.stopTime, stop.timestampHour)}</div>
-            </Popup>
-          </Marker>
-        ))}
-        <FitStopsToView coordinates={coordinates} stops={sortedStops} fitViewKey={fitViewKey} />
-        <FlyToSelectedStop focusStop={focusStop} focusLeftPaddingPx={focusLeftPaddingPx} />
-        <ResizeHandler shouldResizeMap={shouldResizeMap} layoutResizeKey={layoutResizeKey} />
       </MapContainer>
     </div>
   )

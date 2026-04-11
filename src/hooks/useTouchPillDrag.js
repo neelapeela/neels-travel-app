@@ -15,10 +15,12 @@ const readDropHourFromPoint = (clientX, clientY) => {
   return Number.isFinite(hour) ? hour : null
 }
 
-export function useTouchPillDrag({ stops, onMoveStop }) {
+export function useTouchPillDrag({ stops, onMoveStop, disabled = false }) {
   const [touchHeldId, setTouchHeldId] = useState(null)
   const [touchGhost, setTouchGhost] = useState(null)
   const [touchHiddenId, setTouchHiddenId] = useState(null)
+  const disabledRef = useRef(disabled)
+  disabledRef.current = disabled
 
   const touchSessionRef = useRef(null)
   const touchDelayTimerRef = useRef(null)
@@ -164,6 +166,7 @@ export function useTouchPillDrag({ stops, onMoveStop }) {
 
   const handleStopPointerDown = useCallback(
     (event, stopId) => {
+      if (disabledRef.current) return
       if (event.pointerType === 'mouse') return
       clearTouchDrag()
       const timelineEl = event.currentTarget.closest('.timeline')

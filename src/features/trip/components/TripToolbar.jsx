@@ -23,7 +23,8 @@ export default function TripToolbar({
   onCopyShareLink,
   showTimePanel,
   setShowTimePanel,
-  settingsPopover
+  settingsPopover,
+  savesDisabled = false
 }) {
   return (
     <div className="trip-toolbar" data-trip-tutorial="trip-toolbar">
@@ -33,6 +34,8 @@ export default function TripToolbar({
           className="trip-tool-button trip-tool-button--terra"
           onClick={() => setShowAddStopModal(!showAddStopModal)}
           aria-label="Add stop"
+          disabled={savesDisabled}
+          title={savesDisabled ? 'Connect to the internet to add stops' : undefined}
         >
           <BsPlus />
         </button>
@@ -57,7 +60,8 @@ export default function TripToolbar({
           onKeyDown={onDayTitleKeyDown}
           placeholder="Title of the day"
           aria-label="Title of the day"
-          disabled={savingDayTitle}
+          disabled={savingDayTitle || savesDisabled}
+          title={savesDisabled ? 'Day title can be edited when you are online' : undefined}
         />
       </div>
 
@@ -68,6 +72,8 @@ export default function TripToolbar({
             className="trip-tool-button"
             onClick={() => setShowSettingsModal((prev) => !prev)}
             aria-label="Trip settings"
+            disabled={savesDisabled}
+            title={savesDisabled ? 'Trip settings are available when you are online' : undefined}
           >
             <BsGear />
           </button>

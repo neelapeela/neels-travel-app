@@ -2,7 +2,6 @@ import { initializeApp } from 'firebase/app'
 import { getAuth } from 'firebase/auth'
 import { getFirestore } from 'firebase/firestore'
 
-// Your Firebase config - replace with your actual values from Firebase Console
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'your-api-key',
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'your-project.firebaseapp.com',
@@ -12,13 +11,11 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || 'your-app-id'
 }
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig)
 
-// Initialize Firebase Authentication and get a reference to the service
 export const auth = getAuth(app)
 
-// Initialize Firestore and get a reference to the service
+/** Default memory cache — writes do not queue offline; they fail until the network is back. */
 export const db = getFirestore(app)
 
 export default app

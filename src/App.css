@@ -140,6 +140,34 @@
   box-sizing: border-box;
 }
 
+.app-offline-banner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.45rem 1rem;
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+  font-size: 0.8rem;
+  line-height: 1.35;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--palette-sea) 88%, #1a0f0c 12%);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--palette-ochre) 42%, var(--palette-sand) 58%) 0%,
+    color-mix(in srgb, var(--palette-sand) 55%, var(--palette-ochre) 45%) 100%
+  );
+  border-bottom: 1px solid color-mix(in srgb, var(--palette-clay) 35%, var(--palette-ochre) 65%);
+  z-index: 50;
+}
+
+.app-offline-banner__icon {
+  flex-shrink: 0;
+  margin-top: 0.12rem;
+  font-size: 1rem;
+  color: var(--palette-clay);
+}
+
 /* Stretch route content; nested flex needs flex-basis:0 + min-height:0 at each level or flex:1 collapses. */
 main.app-main {
   width: 100%;

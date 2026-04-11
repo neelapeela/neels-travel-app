@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useOffline } from '../context/OfflineContext'
 import { joinTripByCode, joinTripById, subscribeToUserTrips } from '../api/trip'
 import { BsPlusLg } from 'react-icons/bs'
 import CreateTripModal from '../components/CreateTripModal'
@@ -9,6 +10,8 @@ import '../App.css'
 
 export default function Dashboard() {
   const { user } = useAuth()
+  const { isOnline } = useOffline()
+  const savesDisabled = !isOnline
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [trips, setTrips] = useState([])
@@ -64,14 +67,23 @@ export default function Dashboard() {
 
   return (
     <PageShell variant="padded" className="dashboard-page-shell">
-      {createTripModalOpen && <CreateTripModal onClose={() => setCreateTripModalOpen(false)} />}
+      {createTripModalOpen && isOnline && <CreateTripModal onClose={() => setCreateTripModalOpen(false)} />}
 
       <div className="dashboard-layout">
         <aside className="dashboard-sidebar">
           <Card padded className="ui-card--bento-warm">
             <p className="ui-section-title">Start</p>
             <div className="dashboard-sidebar__actions">
-              <Button variant="primary" block onClick={() => setCreateTripModalOpen(true)}>
+              <Button
+                variant="primary"
+                block
+                disabled={savesDisabled}
+                title={savesDisabled ? 'Connect to create a trip' : undefined}
+                onClick={() => {
+                  if (savesDisabled) return
+                  setCreateTripModalOpen(true)
+                }}
+              >
                 <BsPlusLg size={18} aria-hidden />
                 New trip
               </Button>
@@ -90,7 +102,13 @@ export default function Dashboard() {
                 autoComplete="off"
                 wrapperClassName="dashboard-join-card__field"
               />
-              <Button variant="secondary" block disabled={joining || !joinCode.trim()} onClick={handleJoin}>
+              <Button
+                variant="secondary"
+                block
+                disabled={savesDisabled || joining || !joinCode.trim()}
+                title={savesDisabled ? 'Connect to join a trip' : undefined}
+                onClick={handleJoin}
+              >
                 {joining ? 'Joining…' : 'Join trip'}
               </Button>
               {joinError ? (

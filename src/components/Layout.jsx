@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { BsPerson } from 'react-icons/bs'
+import { useOffline } from '../context/OfflineContext'
+import { BsPerson, BsWifiOff } from 'react-icons/bs'
 import ErrorBoundary from './ErrorBoundary'
 import '../App.css'
 
 export default function Layout() {
   const { user, signOut } = useAuth()
+  const { isOnline } = useOffline()
   const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const menuRef = useRef(null)
@@ -81,6 +83,15 @@ export default function Layout() {
           </div>
         </div>
       </header>
+      {!isOnline && (
+        <div className="app-offline-banner" role="status" aria-live="polite">
+          <BsWifiOff className="app-offline-banner__icon" aria-hidden />
+          <span>
+            You&apos;re offline. <strong>Edits and new data are not saved</strong> until you reconnect. Maps and
+            search need a connection.
+          </span>
+        </div>
+      )}
       <main className="app-main">
         <div className="app-main-outlet">
           <ErrorBoundary>

@@ -1,6 +1,7 @@
 import { useNavigate, useParams } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
 import { useAuth } from '../../context/AuthContext'
+import { useOffline } from '../../context/OfflineContext'
 import MapView from './components/MapView'
 import ItineraryView from './components/ItineraryView'
 import {
@@ -44,15 +45,18 @@ import PaymentDetailModal from './components/modals/PaymentDetailModal'
 import TripOnboardingCarousel from './components/TripOnboardingCarousel'
 import FlightsModal from './components/modals/FlightsModal'
 import LodgingModal from './components/modals/LodgingModal'
+import StopTicketsModal from './components/modals/StopTicketsModal'
 import './trip.css'
 
 export default function TripPage() {
   const { tripId } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
+  const { isOnline } = useOffline()
+  const savesDisabled = !isOnline
 
   const [selectedDate, setSelectedDate] = useState(null)
-  const trip = useTripDocument(tripId, selectedDate, setSelectedDate)
+  const { trip, staleReadCache } = useTripDocument(tripId, setSelectedDate)
   const coordinates = useDestinationCoordinates(trip?.destination)
   const [showTimePanel, setShowTimePanel] = useState(true)
   const [showAddStopModal, setShowAddStopModal] = useState(false)
@@ -79,6 +83,7 @@ export default function TripPage() {
   const [showTripOnboarding, setShowTripOnboarding] = useState(false)
   const [paymentForm, setPaymentForm] = useState({ reason: '', amount: '' })
   const [showAddPaymentModal, setShowAddPaymentModal] = useState(false)
+  const [showStopTicketsModal, setShowStopTicketsModal] = useState(false)
   const [paymentDetailModal, setPaymentDetailModal] = useState(null)
   const [addPaymentError, setAddPaymentError] = useState('')
   const [flightNumbersInput, setFlightNumbersInput] = useState('')
@@ -189,7 +194,19 @@ export default function TripPage() {
     setShowAddPaymentModal(false)
     setPaymentDetailModal(null)
     setAddPaymentError('')
+    setShowStopTicketsModal(false)
   }, [selectedStopId])
+
+  useEffect(() => {
+    if (isOnline) return
+    setShowAddStopModal(false)
+    setShowSettingsModal(false)
+    setShowFlightsModal(false)
+    setShowLodgingModal(false)
+    setShowPaymentsModal(false)
+    setShowAddPaymentModal(false)
+    setPaymentDetailModal(null)
+  }, [isOnline])
 
   useEffect(() => {
     setDayTitleDraft(selectedDay?.title || '')
@@ -587,6 +604,11 @@ export default function TripPage() {
 
   return (
     <div className="trip-page">
+      {staleReadCache && (
+        <div className="trip-read-cache-hint" role="status">
+          Showing the last copy saved on this device. Reconnect to refresh. Edits are not saved while offline.
+        </div>
+      )}
       <TripToolbar
         tripId={tripId}
         selectedDate={selectedDate}
@@ -613,6 +635,7 @@ export default function TripPage() {
         onCopyShareLink={handleCopyShareLink}
         showTimePanel={showTimePanel}
         setShowTimePanel={setShowTimePanel}
+        savesDisabled={savesDisabled}
         settingsPopover={
           showSettingsModal ? (
             <TripSettingsPopover
@@ -654,6 +677,7 @@ export default function TripPage() {
                   focusStop={selectedStop}
                   focusLeftPaddingPx={selectedStop ? mapLeftInsetPx : 0}
                   fitViewKey={selectedDate || ''}
+                  onSelectStop={setSelectedStopId}
                 />
               )}
             </div>
@@ -675,6 +699,9 @@ export default function TripPage() {
                   setShowAddPaymentModal(true)
                 }}
                 onSelectPaymentDetail={setPaymentDetailModal}
+                onOpenTickets={() => setShowStopTicketsModal(true)}
+                savesDisabled={savesDisabled}
+                ticketsModalOpen={showStopTicketsModal}
               />
             )}
             <TripIsland
@@ -683,6 +710,7 @@ export default function TripPage() {
               onFlights={() => setShowFlightsModal(true)}
               onLodging={openLodgingModal}
               onMoney={openPaymentsModal}
+              savesDisabled={savesDisabled}
             />
           </div>
         </div>
@@ -729,6 +757,7 @@ export default function TripPage() {
                   onSelectStop={setSelectedStopId}
                   onMoveStop={handleStopHourChange}
                   onTimestampClick={handleTimestampClick}
+                  savesDisabled={savesDisabled}
                 />
               </div>
             </div>
@@ -788,6 +817,13 @@ export default function TripPage() {
           onPaymentFormChange={setPaymentForm}
           addPaymentError={addPaymentError}
           onSave={handleAddPayment}
+        />
+      )}
+
+      {showStopTicketsModal && selectedStop && (
+        <StopTicketsModal
+          stopTitle={selectedStop.title}
+          onClose={() => setShowStopTicketsModal(false)}
         />
       )}
 
