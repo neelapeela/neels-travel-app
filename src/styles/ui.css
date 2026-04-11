@@ -611,7 +611,9 @@
   align-items: center;
   min-height: 4rem;
   width: 100%;
-  padding: 0 var(--space-lg);
+  /* PWA / iOS: viewport-fit=cover + black-translucent status bar — keep chrome below notch & island */
+  padding: max(0px, env(safe-area-inset-top, 0px)) max(var(--space-lg), env(safe-area-inset-right, 0px))
+    0 max(var(--space-lg), env(safe-area-inset-left, 0px));
   flex-shrink: 0;
   background: var(--app-chrome-bg);
   border-bottom: 1px solid var(--app-chrome-border);

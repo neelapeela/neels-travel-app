@@ -4,6 +4,7 @@
   width: 100%;
   height: 100vh;
   height: 100dvh;
+  min-height: -webkit-fill-available;
   padding: 0;
   margin: 0;
   text-align: left;
@@ -19,6 +20,7 @@
   justify-content: flex-start;
   height: 100vh;
   height: 100dvh;
+  min-height: -webkit-fill-available;
   overflow: hidden;
 }
 
@@ -188,6 +190,8 @@ main.app-main {
   flex-direction: column;
   align-items: stretch;
   overflow: hidden;
+  /* Trip + dashboard sit on sand; fills subpixel gaps under PWA where html uses dark --color-bg-page */
+  background: var(--color-bg-sand-room);
 }
 
 /* Login / dashboard chrome: `src/styles/ui.css` + `src/components/ui/*` */
