@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { lodgingBaseTitle } from '../utils/lodging'
+import { flightIdentityKey, lodgingIdentityKey } from '../utils/specialStopIdentity'
 
 /** Aggregates flight and lodging stops across the itinerary for trip-wide lists. */
 export function useTripSpecialStopGroups(itinerary) {
@@ -9,8 +10,9 @@ export function useTripSpecialStopGroups(itinerary) {
       for (const stop of day.stops || []) {
         if (stop.stopType !== 'flight') continue
         const code = (stop.metadata?.flightNumber || stop.title || 'FLIGHT').toUpperCase()
-        if (!map.has(code)) map.set(code, { code, stops: [] })
-        map.get(code).stops.push({
+        const identity = flightIdentityKey(stop) || `legacy:${code}:${stop.id || ''}`
+        if (!map.has(identity)) map.set(identity, { key: identity, code, stops: [] })
+        map.get(identity).stops.push({
           ...stop,
           date: day.date
         })
@@ -26,7 +28,7 @@ export function useTripSpecialStopGroups(itinerary) {
         if (stop.stopType !== 'lodging') continue
         const id = stop.metadata?.lodgingId
         const base = lodgingBaseTitle(stop.title)
-        const key = id || `legacy:${stop.location || ''}|${base}`
+        const key = lodgingIdentityKey(stop) || id || `legacy:${stop.location || ''}|${base}`
         if (!groups.has(key)) {
           groups.set(key, {
             key,

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTouchPillDrag } from '../../../hooks/useTouchPillDrag'
 
-const hours = Array.from({ length: 24 }, (_, index) => index)
 const formatHour = (hour) => {
   const normalizedHour = ((hour % 24) + 24) % 24
   const suffix = normalizedHour >= 12 ? 'PM' : 'AM'
@@ -45,11 +44,15 @@ export default function ItineraryView({
   }
 
   const grouped = useMemo(
-    () =>
-      hours.map((hour) => ({
-        hour,
-        stops: stops.filter((stop) => Number(stop.timestampHour) === hour)
-      })),
+    () => {
+      const buckets = Array.from({ length: 24 }, (_, hour) => ({ hour, stops: [] }))
+      for (const stop of stops || []) {
+        const hour = Number(stop.timestampHour)
+        if (!Number.isFinite(hour) || hour < 0 || hour > 23) continue
+        buckets[hour].stops.push(stop)
+      }
+      return buckets
+    },
     [stops]
   )
 

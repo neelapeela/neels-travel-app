@@ -2,34 +2,13 @@ import { arrayRemove, deleteField, doc, getDoc, runTransaction, updateDoc } from
 import { v4 as uuidv4 } from 'uuid'
 import { db } from '../firebase'
 import { lodgingBaseTitle } from '../../utils/lodging'
+import { specialStopIdentityKey } from '../../utils/specialStopIdentity'
 import { normalizeStop } from './normalize'
 
 const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key)
 
-const linkedStopKey = (stop) => {
-  if (!stop || (stop.stopType !== 'flight' && stop.stopType !== 'lodging')) return ''
-  if (stop.stopType === 'flight') {
-    const pairId = String(stop.metadata?.flightPairId || '').trim()
-    if (pairId) return `flight:pair:${pairId}`
-    const flightNumber = String(stop.metadata?.flightNumber || '').trim().toUpperCase()
-    const travelerId = String(stop.metadata?.travelerId || '').trim()
-    if (flightNumber && travelerId) return `flight:number:${flightNumber}:traveler:${travelerId}`
-    const participantIds = Array.isArray(stop.metadata?.participantIds)
-      ? stop.metadata.participantIds.map((id) => String(id || '').trim()).filter(Boolean).sort().join(',')
-      : ''
-    if (flightNumber && participantIds) return `flight:number:${flightNumber}:group:${participantIds}`
-    return ''
-  }
-  const lodgingId = String(stop.metadata?.lodgingId || '').trim()
-  if (lodgingId) return `lodging:id:${lodgingId}`
-  const location = String(stop.location || '').trim()
-  const baseTitle = lodgingBaseTitle(stop.title)
-  if (location || baseTitle) return `lodging:legacy:${location}|${baseTitle}`
-  return ''
-}
-
 const findLinkedStopRefs = (itinerary, sourceStop) => {
-  const key = linkedStopKey(sourceStop)
+  const key = specialStopIdentityKey(sourceStop)
   if (!key) return []
   const refs = []
   for (let dayIndex = 0; dayIndex < (itinerary || []).length; dayIndex += 1) {
@@ -38,7 +17,7 @@ const findLinkedStopRefs = (itinerary, sourceStop) => {
       const stop = stops[stopIndex]
       if (!stop || stop.id === sourceStop.id) continue
       if (stop.stopType !== sourceStop.stopType) continue
-      if (linkedStopKey(stop) !== key) continue
+      if (specialStopIdentityKey(stop) !== key) continue
       refs.push({ dayIndex, stopIndex })
     }
   }
@@ -329,20 +308,22 @@ export const deleteFlightStopsByFlightNumber = async (tripId, date, flightNumber
   })
 }
 
-export const deleteFlightStopsAcrossTrip = async (tripId, flightNumber) => {
-  if (!tripId || !flightNumber) throw new Error('Missing required parameters')
+export const deleteFlightStopsAcrossTrip = async (tripId, flightRef) => {
+  if (!tripId || !flightRef) throw new Error('Missing required parameters')
   const tripRef = doc(db, 'trips', tripId)
   const tripSnapshot = await getDoc(tripRef)
   if (!tripSnapshot.exists()) throw new Error('Trip not found')
 
   const tripData = tripSnapshot.data()
   const itinerary = [...(tripData.itinerary || [])]
-  const normalized = flightNumber.trim().toUpperCase()
+  const normalized = typeof flightRef === 'string' ? flightRef.trim().toUpperCase() : ''
+  const identityKey = typeof flightRef === 'object' ? specialStopIdentityKey(flightRef) : ''
 
   const nextItinerary = itinerary.map((day) => ({
     ...day,
     stops: (day.stops || []).filter((stop) => {
       if (stop.stopType !== 'flight') return true
+      if (identityKey) return specialStopIdentityKey(stop) !== identityKey
       const code = (stop.metadata?.flightNumber || '').toUpperCase()
       return code !== normalized
     })

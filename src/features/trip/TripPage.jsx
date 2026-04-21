@@ -32,7 +32,8 @@ import { useRequestCache } from '../../hooks/useRequestCache'
 import { useTripDaySelection } from '../../hooks/useTripDaySelection'
 import { normalizeTimeInput } from '../../utils/stopTime'
 import { findTimeZoneIdAtCoordinate } from '../../utils/stopTimezone'
-import { membersKey, colorForMembersKey, normalizeMembersForParticipants, normalizeMembersValue } from './utils/stopMembers'
+import { membersValueEqual, normalizeMembersValue } from '../../utils/members'
+import { membersKey, colorForMembersKey, normalizeMembersForParticipants } from './utils/stopMembers'
 import { isDateWithinRange, formatDateHeading } from '../../utils/tripDates'
 import { hasSeenTripTutorial, markTripTutorialSeen } from '../../utils/tripTutorialStorage'
 import { SHARE_FEEDBACK_CLEAR_MS } from './constants'
@@ -47,16 +48,8 @@ import TripOnboardingCarousel from './components/TripOnboardingCarousel'
 import FlightsModal from './components/modals/FlightsModal'
 import LodgingModal from './components/modals/LodgingModal'
 import StopTicketsModal from './components/modals/StopTicketsModal'
+import { useTripModalController } from './hooks/useTripModalController'
 import './trip.css'
-
-function membersValueEqual(left, right) {
-  const a = normalizeMembersValue(left)
-  const b = normalizeMembersValue(right)
-  if (a == null && b == null) return true
-  if (a == null || b == null) return false
-  if (a.length !== b.length) return false
-  return a.every((id, index) => id === b[index])
-}
 
 export default function TripPage() {
   const { tripId } = useParams()
@@ -69,8 +62,23 @@ export default function TripPage() {
   const { trip, staleReadCache } = useTripDocument(tripId, setSelectedDate)
   const coordinates = useDestinationCoordinates(trip?.destination)
   const [showTimePanel, setShowTimePanel] = useState(true)
-  const [showAddStopModal, setShowAddStopModal] = useState(false)
-  const [showShareMenu, setShowShareMenu] = useState(false)
+  const {
+    showAddStopModal,
+    showShareMenu,
+    showSettingsModal,
+    showPaymentsModal,
+    showFlightsModal,
+    showLodgingModal,
+    showStopTicketsModal,
+    setShowAddStopModal,
+    setShowShareMenu,
+    setShowSettingsModal,
+    setShowPaymentsModal,
+    setShowFlightsModal,
+    setShowLodgingModal,
+    setShowStopTicketsModal,
+    closeAllForOffline
+  } = useTripModalController()
   const [selectedStopId, setSelectedStopId] = useState(null)
   const [newStopHour, setNewStopHour] = useState(9)
   const [shareCopied, setShareCopied] = useState('')
@@ -85,15 +93,10 @@ export default function TripPage() {
   const [savingStop, setSavingStop] = useState(false)
   const [dayTitleDraft, setDayTitleDraft] = useState('')
   const [savingDayTitle, setSavingDayTitle] = useState(false)
-  const [showSettingsModal, setShowSettingsModal] = useState(false)
-  const [showPaymentsModal, setShowPaymentsModal] = useState(false)
   const [paymentsMoneyTab, setPaymentsMoneyTab] = useState('overview')
-  const [showFlightsModal, setShowFlightsModal] = useState(false)
-  const [showLodgingModal, setShowLodgingModal] = useState(false)
   const [pendingStopEditId, setPendingStopEditId] = useState(null)
   const [tripNotesDraft, setTripNotesDraft] = useState('')
   const [showTripOnboarding, setShowTripOnboarding] = useState(false)
-  const [showStopTicketsModal, setShowStopTicketsModal] = useState(false)
   const [ticketsModalInitialTab, setTicketsModalInitialTab] = useState('tickets')
   const [paymentDetailModal, setPaymentDetailModal] = useState(null)
   const [flightNumbersInput, setFlightNumbersInput] = useState('')
@@ -246,13 +249,9 @@ export default function TripPage() {
 
   useEffect(() => {
     if (isOnline) return
-    setShowAddStopModal(false)
-    setShowSettingsModal(false)
-    setShowFlightsModal(false)
-    setShowLodgingModal(false)
-    setShowPaymentsModal(false)
+    closeAllForOffline()
     setPaymentDetailModal(null)
-  }, [isOnline])
+  }, [isOnline, closeAllForOffline])
 
   useEffect(() => {
     setDayTitleDraft(selectedDay?.title || '')
@@ -479,8 +478,14 @@ export default function TripPage() {
     }
   }
 
-  const handleDeleteFlight = async (flightNumber) => {
-    await deleteFlightStopsAcrossTrip(tripId, flightNumber)
+  const handleDeleteFlight = async (flightEntry) => {
+    if (flightEntry?.stops?.[0]) {
+      await deleteFlightStopsAcrossTrip(tripId, flightEntry.stops[0])
+      return
+    }
+    if (flightEntry?.code) {
+      await deleteFlightStopsAcrossTrip(tripId, flightEntry.code)
+    }
   }
 
   const handleFlightPreviewChange = (flightId, patch) => {

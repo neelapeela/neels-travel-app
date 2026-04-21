@@ -11,8 +11,7 @@ import { FitStopsToView, FlyToSelectedStop, ResizeHandler } from './map/leafletM
 import {
   createLodgingHomeIcon,
   createSpecialIcon,
-  createStopIcon,
-  numberedStopOrder
+  createStopIcon
 } from './map/markerIcons'
 import '../trip.css'
 import { colorForMembersKey, membersKey } from '../utils/stopMembers'
@@ -110,10 +109,27 @@ function MapInner({
   onSelectStop
 }) {
   const leafletMap = useMap()
-  const markerColorFor = (stop) => {
-    const key = membersKey(stop?.members, participants)
-    return colorForMembersKey(key)
-  }
+  const markerViewModels = useMemo(() => {
+    const iconCache = new Map()
+    let regularOrder = 0
+    return sortedStops.map((stop, index) => {
+      const memberKey = membersKey(stop?.members, participants)
+      const color = colorForMembersKey(memberKey)
+      let iconKey = ''
+      if (stop.stopType === 'flight') {
+        iconKey = `flight:${color}`
+        if (!iconCache.has(iconKey)) iconCache.set(iconKey, createSpecialIcon('✈', color))
+      } else if (stop.stopType === 'lodging') {
+        iconKey = `lodging:${color}`
+        if (!iconCache.has(iconKey)) iconCache.set(iconKey, createLodgingHomeIcon(color))
+      } else {
+        regularOrder += 1
+        iconKey = `regular:${regularOrder}:${color}`
+        if (!iconCache.has(iconKey)) iconCache.set(iconKey, createStopIcon(regularOrder, color))
+      }
+      return { stop, index, icon: iconCache.get(iconKey) }
+    })
+  }, [sortedStops, participants])
 
   return (
     <>
@@ -121,17 +137,11 @@ function MapInner({
       {routeGroups.map((group) => (
         <RouteLayer key={group.key} stops={group.stops} color={group.color} groupKey={group.key} />
       ))}
-      {sortedStops.map((stop, index) => (
+      {markerViewModels.map(({ stop, icon }) => (
         <Marker
           key={stop.id}
           position={[readCoord(stop.latitude), readCoord(stop.longitude)]}
-          icon={
-            stop.stopType === 'flight'
-              ? createSpecialIcon('✈', markerColorFor(stop))
-              : stop.stopType === 'lodging'
-                ? createLodgingHomeIcon(markerColorFor(stop))
-                : createStopIcon(numberedStopOrder(sortedStops, index), markerColorFor(stop))
-          }
+          icon={icon}
         >
           <Popup>
             <StopPopupBody

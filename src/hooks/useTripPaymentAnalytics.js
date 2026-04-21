@@ -4,6 +4,7 @@ import {
   netSettlementBetweenUserAndOther
 } from '../utils/paymentSettlement'
 import { getParticipantDisplayNamesByIds } from '../api/user'
+import { normalizeMembersValue } from '../utils/members'
 
 /** Stored payerName fallbacks that should not beat trip/profile labels. */
 const GENERIC_PAYER_LABELS = new Set(['traveler', 'unknown', 'member', ''])
@@ -11,14 +12,7 @@ const GENERIC_PAYER_LABELS = new Set(['traveler', 'unknown', 'member', ''])
 const EMPTY_PARTICIPANTS = []
 
 const normalizeIdList = (value) => {
-  if (!Array.isArray(value)) return []
-  return Array.from(
-    new Set(
-      value
-        .map((id) => String(id || '').trim())
-        .filter(Boolean)
-    )
-  )
+  return normalizeMembersValue(value) || []
 }
 
 const resolveStopSplitMembers = (stopMembers, tripParticipants, payerId) => {
@@ -154,7 +148,8 @@ export function useTripPaymentAnalytics(trip, userId) {
     () => ({
       totals: stopSplitBalances.payerTotals,
       total: stopSplitBalances.total,
-      // keep key name for existing UI plumbing; semantics are now "assigned share by stop membership"
+      assignedShare: stopSplitBalances.userAssignedShare,
+      // backward-compatible alias; prefer `assignedShare`.
       share: stopSplitBalances.userAssignedShare,
       userNet: userId ? stopSplitBalances.balances[userId] || 0 : 0
     }),

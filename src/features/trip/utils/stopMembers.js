@@ -1,9 +1,4 @@
-export function normalizeMembersValue(value) {
-  if (value == null) return null
-  if (!Array.isArray(value)) return null
-  const cleaned = value.map((v) => String(v || '').trim()).filter(Boolean)
-  return cleaned.length ? Array.from(new Set(cleaned)).sort() : null
-}
+import { normalizeMembersValue } from '../../../utils/members'
 
 export function normalizeMembersForParticipants(members, allParticipants) {
   const all = normalizeMembersValue(allParticipants) || []

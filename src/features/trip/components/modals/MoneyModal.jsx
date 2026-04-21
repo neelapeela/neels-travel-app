@@ -54,7 +54,7 @@ export default function MoneyModal({
                 {participantCount > 0 && userId && (
                   <>
                     {' · '}
-                    Your total spend: <strong>${paymentTotals.share.toFixed(2)}</strong>
+                    Your assigned share: <strong>${Number(paymentTotals.assignedShare ?? paymentTotals.share ?? 0).toFixed(2)}</strong>
                   </>
                 )}
               </p>

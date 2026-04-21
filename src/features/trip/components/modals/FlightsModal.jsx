@@ -228,7 +228,7 @@ export default function FlightsModal({
                             >
                               <BsTicketPerforated size={18} aria-hidden />
                             </button>
-                            <button type="button" className="flight-added-row__delete" onClick={() => onDeleteFlight(flight.code)}>
+                            <button type="button" className="flight-added-row__delete" onClick={() => onDeleteFlight(flight)}>
                               Delete
                             </button>
                           </div>
