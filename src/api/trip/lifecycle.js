@@ -78,7 +78,18 @@ export const joinTripByCode = async (userId, inviteCode, memberProfile = null) =
 
   const normalizedCode = inviteCode.trim().toUpperCase()
   const inviteDocRef = doc(db, 'trip_invites', normalizedCode)
-  const inviteSnapshot = await getDoc(inviteDocRef)
+  let inviteSnapshot
+  try {
+    inviteSnapshot = await getDoc(inviteDocRef)
+  } catch (error) {
+    const code = error?.code
+    if (code === 'permission-denied') {
+      throw new Error(
+        'Could not read invite (permission denied). Deploy `firestore.rules` from this repo and ensure `trip_invites` allows read for signed-in users.'
+      )
+    }
+    throw error
+  }
   if (!inviteSnapshot.exists()) throw new Error('Trip not found for that invite code')
 
   const inviteData = inviteSnapshot.data()
@@ -93,16 +104,36 @@ export const joinTripByCode = async (userId, inviteCode, memberProfile = null) =
   if (joinLabel) {
     tripUpdate[`participantNames.${userId}`] = joinLabel
   }
-  await updateDoc(doc(db, 'trips', tripId), tripUpdate)
+  try {
+    await updateDoc(doc(db, 'trips', tripId), tripUpdate)
+  } catch (error) {
+    const code = error?.code
+    if (code === 'permission-denied') {
+      throw new Error(
+        'Could not add you to the trip (permission denied). The trip document must match deployed rules: join only changes participants, optional participantNames.{you}, and updatedAt. Fix: run `firebase deploy --only firestore:rules` with this project’s `firestore.rules`, or fix odd field types on the trip (e.g. startDate/endDate as strings YYYY-MM-DD).'
+      )
+    }
+    throw error
+  }
 
   const userRef = doc(db, 'users', userId)
-  await setDoc(
-    userRef,
-    {
-      trips: arrayUnion(tripId)
-    },
-    { merge: true }
-  )
+  try {
+    await setDoc(
+      userRef,
+      {
+        trips: arrayUnion(tripId)
+      },
+      { merge: true }
+    )
+  } catch (error) {
+    const code = error?.code
+    if (code === 'permission-denied') {
+      throw new Error(
+        'Could not update your user profile (permission denied). Rules must allow each user to create/update their own `users/{uid}` document.'
+      )
+    }
+    throw error
+  }
 
   return tripId
 }

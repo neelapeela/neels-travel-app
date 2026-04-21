@@ -23,6 +23,7 @@ export default function TripIsland({
       <button
         type="button"
         className="trip-tool-button"
+        onMouseDown={(event) => event.preventDefault()}
         onClick={onFlights}
         disabled={savesDisabled}
         title={savesDisabled ? 'Connect to use flights' : undefined}
@@ -33,6 +34,7 @@ export default function TripIsland({
       <button
         type="button"
         className="trip-tool-button"
+        onMouseDown={(event) => event.preventDefault()}
         onClick={onLodging}
         disabled={savesDisabled}
         title={savesDisabled ? 'Connect to use lodging' : undefined}
@@ -43,6 +45,7 @@ export default function TripIsland({
       <button
         type="button"
         className="trip-tool-button"
+        onMouseDown={(event) => event.preventDefault()}
         onClick={onMoney}
         disabled={savesDisabled}
         title={savesDisabled ? 'Connect to use money' : undefined}

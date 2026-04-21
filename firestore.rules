@@ -20,6 +20,125 @@ service cloud.firestore {
           == request.auth.uid;
     }
 
+    function tripParticipantsListUnchanged() {
+      return request.resource.data.get('participants', []) == resource.data.get('participants', []);
+    }
+
+    // creatorId, inviteCode, id, createdAt — never client-writable after create.
+    function tripInviteAndIdentityUnchanged() {
+      return resource.data.creatorId == request.resource.data.creatorId
+        && resource.data.get('inviteCode') == request.resource.data.get('inviteCode')
+        && resource.data.get('id') == request.resource.data.get('id')
+        && resource.data.get('createdAt') == request.resource.data.get('createdAt');
+    }
+
+    // Trip “header” fields — app does not edit these after create; keep them fixed on updates.
+    function tripTripMetaUnchanged() {
+      return resource.data.get('name') == request.resource.data.get('name')
+        && resource.data.get('destination') == request.resource.data.get('destination')
+        && resource.data.get('startDate') == request.resource.data.get('startDate')
+        && resource.data.get('endDate') == request.resource.data.get('endDate')
+        && resource.data.get('description') == request.resource.data.get('description');
+    }
+
+    function tripParticipantNamesUnchanged() {
+      return request.resource.data.get('participantNames', {}) == resource.data.get('participantNames', {});
+    }
+
+    // Join (invite code / link): add only self to participants; only participants, participantNames,
+    // and updatedAt may change (covers first join and idempotent retries). We rely on diff().affectedKeys()
+    // rather than deep == on itinerary/meta so legacy trips (extra keys, type quirks) still match join writes.
+    function tripJoinAddsSelfOnly() {
+      let d = request.resource.data.diff(resource.data);
+      let oldP = resource.data.get('participants', []).toSet();
+      let newP = request.resource.data.get('participants', []).toSet();
+      let pnd = request.resource.data.get('participantNames', {}).diff(resource.data.get('participantNames', {}));
+      let nameOk = pnd.affectedKeys().size() == 0 || pnd.affectedKeys().hasOnly([request.auth.uid]);
+      return request.auth != null
+        && request.auth.uid in request.resource.data.get('participants', [])
+        && oldP.difference(newP).size() == 0
+        && (newP.difference(oldP).size() == 0 || newP.difference(oldP).hasOnly([request.auth.uid]))
+        && d.affectedKeys().hasOnly(['participants', 'participantNames', 'updatedAt'])
+        && nameOk;
+    }
+
+    // Creator removes one or more travelers; participantNames keys removed must be a subset of removed uids
+    // (subset so missing name slots still pass when deleteField was a no-op).
+    function tripCreatorRemovesParticipants() {
+      let d = request.resource.data.diff(resource.data);
+      let oldP = resource.data.get('participants', []).toSet();
+      let newP = request.resource.data.get('participants', []).toSet();
+      let removedP = oldP.difference(newP);
+      let nameDiff = request.resource.data.get('participantNames', {}).diff(resource.data.get('participantNames', {}));
+      return request.auth != null
+        && request.auth.uid == resource.data.creatorId
+        && newP.difference(oldP).size() == 0
+        && removedP.size() >= 1
+        && !removedP.hasAny([resource.data.creatorId])
+        && newP.hasAny([resource.data.creatorId])
+        && tripInviteAndIdentityUnchanged()
+        && tripTripMetaUnchanged()
+        && request.resource.data.get('itinerary') == resource.data.get('itinerary')
+        && request.resource.data.get('notes', '') == resource.data.get('notes', '')
+        && request.resource.data.get('setupCompleted', false) == resource.data.get('setupCompleted', false)
+        && d.affectedKeys().hasOnly(['participants', 'participantNames', 'updatedAt'])
+        && nameDiff.addedKeys().size() == 0
+        && nameDiff.changedKeys().size() == 0
+        && nameDiff.removedKeys().difference(removedP).size() == 0;
+    }
+
+    function tripParticipantRenamesSelf() {
+      let d = request.resource.data.diff(resource.data);
+      let pnd = request.resource.data.get('participantNames', {}).diff(resource.data.get('participantNames', {}));
+      return request.auth != null
+        && request.auth.uid in resource.data.get('participants', [])
+        && request.auth.uid in request.resource.data.get('participants', [])
+        && tripParticipantsListUnchanged()
+        && tripInviteAndIdentityUnchanged()
+        && tripTripMetaUnchanged()
+        && request.resource.data.get('itinerary') == resource.data.get('itinerary')
+        && request.resource.data.get('notes', '') == resource.data.get('notes', '')
+        && request.resource.data.get('setupCompleted', false) == resource.data.get('setupCompleted', false)
+        && d.affectedKeys().hasOnly(['participantNames', 'updatedAt'])
+        && (pnd.affectedKeys().size() == 0 || pnd.affectedKeys().hasOnly([request.auth.uid]));
+    }
+
+    // Itinerary-only patch from the app sends { itinerary, updatedAt }. Requiring deep == on meta, names,
+    // notes, etc. can deny valid writes when stored types differ (Timestamp vs string, null vs missing).
+    // Top-level diff hasOnly already prevents mutating any other field in the same request.
+    function tripItineraryWrite() {
+      let d = request.resource.data.diff(resource.data);
+      return request.auth != null
+        && request.auth.uid in resource.data.get('participants', [])
+        && request.auth.uid in request.resource.data.get('participants', [])
+        && tripParticipantsListUnchanged()
+        && d.affectedKeys().hasOnly(['itinerary', 'updatedAt']);
+    }
+
+    function tripNotesWrite() {
+      return request.auth != null
+        && request.auth.uid in resource.data.get('participants', [])
+        && request.auth.uid in request.resource.data.get('participants', [])
+        && tripParticipantsListUnchanged()
+        && tripInviteAndIdentityUnchanged()
+        && tripTripMetaUnchanged()
+        && tripParticipantNamesUnchanged()
+        && request.resource.data.get('itinerary') == resource.data.get('itinerary')
+        && request.resource.data.get('setupCompleted', false) == resource.data.get('setupCompleted', false)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['notes', 'updatedAt']);
+    }
+
+    function tripCompleteSetupWrite() {
+      return request.auth != null
+        && request.auth.uid in resource.data.get('participants', [])
+        && request.auth.uid in request.resource.data.get('participants', [])
+        && tripParticipantsListUnchanged()
+        && tripInviteAndIdentityUnchanged()
+        && tripTripMetaUnchanged()
+        && tripParticipantNamesUnchanged()
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['notes', 'setupCompleted', 'itinerary', 'updatedAt']);
+    }
+
     match /users/{userId} {
       allow read, create: if request.auth != null && request.auth.uid == userId;
       allow update: if request.auth != null && (
@@ -30,17 +149,19 @@ service cloud.firestore {
 
     match /trips/{tripId} {
       allow read: if request.auth != null
-        && request.auth.uid in resource.data.participants;
+        && request.auth.uid in resource.data.get('participants', []);
 
       allow create: if request.auth != null
         && request.resource.data.creatorId == request.auth.uid
-        && request.auth.uid in request.resource.data.participants;
+        && request.auth.uid in request.resource.data.get('participants', []);
 
-      // Join: user ends up in participants. Members can edit the shared trip doc.
-      allow update: if request.auth != null
-        && request.auth.uid in request.resource.data.participants;
+      allow update: if tripJoinAddsSelfOnly()
+        || tripCreatorRemovesParticipants()
+        || tripParticipantRenamesSelf()
+        || tripItineraryWrite()
+        || tripNotesWrite()
+        || tripCompleteSetupWrite();
 
-      // Delete trip (creator only) — required for “Delete trip” in settings
       allow delete: if request.auth != null
         && resource.data.creatorId == request.auth.uid;
     }

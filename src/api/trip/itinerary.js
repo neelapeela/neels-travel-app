@@ -1,4 +1,4 @@
-import { arrayRemove, deleteField, doc, getDoc, updateDoc } from 'firebase/firestore'
+import { arrayRemove, deleteField, doc, getDoc, runTransaction, updateDoc } from 'firebase/firestore'
 import { v4 as uuidv4 } from 'uuid'
 import { db } from '../firebase'
 import { lodgingBaseTitle } from '../../utils/lodging'
@@ -327,21 +327,24 @@ export const completeTripSetup = async (tripId, payload) => {
 export const updateDayTitleInTrip = async (tripId, date, title) => {
   if (!tripId || !date) throw new Error('Missing required parameters')
   const tripRef = doc(db, 'trips', tripId)
-  const tripSnapshot = await getDoc(tripRef)
-  if (!tripSnapshot.exists()) throw new Error('Trip not found')
 
-  const tripData = tripSnapshot.data()
-  const itinerary = [...(tripData.itinerary || [])]
-  const dayIndex = itinerary.findIndex((day) => day.date === date)
-  if (dayIndex < 0) throw new Error('Day not found')
+  await runTransaction(db, async (transaction) => {
+    const tripSnapshot = await transaction.get(tripRef)
+    if (!tripSnapshot.exists()) throw new Error('Trip not found')
 
-  itinerary[dayIndex] = {
-    ...itinerary[dayIndex],
-    title: title || ''
-  }
+    const tripData = tripSnapshot.data()
+    const itinerary = [...(tripData.itinerary || [])]
+    const dayIndex = itinerary.findIndex((day) => day.date === date)
+    if (dayIndex < 0) throw new Error('Day not found')
 
-  await updateDoc(tripRef, {
-    itinerary,
-    updatedAt: new Date().toISOString()
+    itinerary[dayIndex] = {
+      ...itinerary[dayIndex],
+      title: title || ''
+    }
+
+    transaction.update(tripRef, {
+      itinerary,
+      updatedAt: new Date().toISOString()
+    })
   })
 }

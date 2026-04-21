@@ -82,70 +82,27 @@ function mapboxPathSegment(coords) {
  * @param {{ latitude: number, longitude: number }[]} chunk — ≥2 points
  * @returns {Promise<[number, number][]|null>} [lat, lng][] or null on failure
  */
-async function fetchMapboxDrivingChunk(chunk, signal) {
-  const token = getMapboxAccessToken()
-  if (!token || chunk.length < 2) return null
-
-  const path = mapboxPathSegment(chunk)
-  const radiuses = Array.from({ length: chunk.length }, () => String(WAYPOINT_SNAP_RADIUS_METERS)).join(
-    ';'
-  )
+function buildDirectionsUrl(path, token, { useSnapRadius }) {
   const qs = new URLSearchParams({
     access_token: token,
     geometries: 'geojson',
     // `full` follows road centerlines closely; `simplified` drops vertices and looks “off” on OSM basemaps at city zoom.
-    overview: 'full',
-    radiuses
+    overview: 'full'
   })
-  const url = `${MAPBOX_DIRECTIONS_BASE}/${encodeURI(path)}?${qs}`
-
-  routeDebugLog('Mapbox Directions request', {
-    urlChars: url.length,
-    waypointCount: chunk.length,
-    url: url.length > 320 ? `${url.slice(0, 260)}…` : url.replace(token, '…TOKEN…')
-  })
-
-  let data
-  try {
-    const response = await fetch(url, { signal })
-    if (!response.ok) {
-      const errBody = await response.text().catch(() => '')
-      routeDebugLog('Mapbox Directions HTTP not OK → straight leg', {
-        status: response.status,
-        statusText: response.statusText,
-        bodyPreview: errBody.slice(0, 220)
-      })
-      return null
-    }
-    data = await response.json()
-  } catch (e) {
-    if (e?.name === 'AbortError') {
-      routeDebugLog('Mapbox Directions aborted')
-      throw e
-    }
-    routeDebugLog('Mapbox Directions fetch error → straight leg', {
-      name: e?.name,
-      message: e?.message,
-      cause: e?.cause?.message
-    })
-    return null
+  if (useSnapRadius) {
+    const radiuses = Array.from({ length: path.split(';').length }, () =>
+      String(WAYPOINT_SNAP_RADIUS_METERS)
+    ).join(';')
+    qs.set('radiuses', radiuses)
   }
+  return `${MAPBOX_DIRECTIONS_BASE}/${encodeURI(path)}?${qs}`
+}
 
-  if (data.code !== 'Ok' || !data.routes?.[0]?.geometry) {
-    routeDebugLog('Mapbox Directions response not usable → straight leg', {
-      code: data?.code,
-      message: data?.message
-    })
-    return null
-  }
-
+function parseDirectionsGeometry(data) {
+  if (data.code !== 'Ok' || !data.routes?.[0]?.geometry) return null
   const geom = data.routes[0].geometry
   const rawCoords = geom.coordinates
-  if (!Array.isArray(rawCoords)) {
-    routeDebugLog('Mapbox Directions geometry missing coordinates → straight leg')
-    return null
-  }
-
+  if (!Array.isArray(rawCoords)) return null
   const points = rawCoords
     .map((c) => {
       const lon = c[0]
@@ -154,13 +111,82 @@ async function fetchMapboxDrivingChunk(chunk, signal) {
       return [lat, lon]
     })
     .filter(Boolean)
+  return points.length >= 2 ? points : null
+}
 
-  if (points.length >= 2) {
-    routeDebugLog('Mapbox Directions chunk OK', { polylinePoints: points.length })
-    return points
+async function fetchMapboxDrivingChunk(chunk, signal) {
+  const token = getMapboxAccessToken()
+  if (!token || chunk.length < 2) return null
+
+  const path = mapboxPathSegment(chunk)
+
+  const attempts = [
+    { useSnapRadius: true, label: 'radiuses=200m' },
+    { useSnapRadius: false, label: 'radiuses omitted (unlimited snap)' }
+  ]
+
+  for (let i = 0; i < attempts.length; i += 1) {
+    const url = buildDirectionsUrl(path, token, attempts[i])
+
+    routeDebugLog('Mapbox Directions request', {
+      attempt: `${i + 1}/${attempts.length}`,
+      snap: attempts[i].label,
+      urlChars: url.length,
+      waypointCount: chunk.length,
+      url: url.length > 320 ? `${url.slice(0, 260)}…` : url.replace(token, '…TOKEN…')
+    })
+
+    let data
+    try {
+      const response = await fetch(url, { signal })
+      if (!response.ok) {
+        const errBody = await response.text().catch(() => '')
+        routeDebugLog('Mapbox Directions HTTP not OK → straight leg', {
+          attempt: attempts[i].label,
+          status: response.status,
+          statusText: response.statusText,
+          bodyPreview: errBody.slice(0, 220)
+        })
+        return null
+      }
+      data = await response.json()
+    } catch (e) {
+      if (e?.name === 'AbortError') {
+        routeDebugLog('Mapbox Directions aborted')
+        throw e
+      }
+      routeDebugLog('Mapbox Directions fetch error → straight leg', {
+        attempt: attempts[i].label,
+        name: e?.name,
+        message: e?.message,
+        cause: e?.cause?.message
+      })
+      return null
+    }
+
+    const points = parseDirectionsGeometry(data)
+    if (points) {
+      routeDebugLog('Mapbox Directions chunk OK', { polylinePoints: points.length, snap: attempts[i].label })
+      return points
+    }
+
+    const retryable = data?.code === 'NoSegment' || data?.code === 'NoRoute'
+    if (!retryable || i === attempts.length - 1) {
+      routeDebugLog('Mapbox Directions response not usable → straight leg', {
+        code: data?.code,
+        message: data?.message,
+        routesCount: Array.isArray(data?.routes) ? data.routes.length : 0,
+        snap: attempts[i].label
+      })
+      return null
+    }
+
+    routeDebugLog('Mapbox Directions retrying with relaxed waypoint snap', {
+      code: data?.code,
+      message: data?.message
+    })
   }
 
-  routeDebugLog('Mapbox Directions geometry <2 points → straight leg', { parsed: points.length })
   return null
 }
 
