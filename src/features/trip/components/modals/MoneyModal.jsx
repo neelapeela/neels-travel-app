@@ -11,6 +11,7 @@ export default function MoneyModal({
   paymentTotals,
   paymentOverviewVsYou,
   allPayments,
+  onSelectLogPayment,
   userId,
   participantCount
 }) {
@@ -50,16 +51,16 @@ export default function MoneyModal({
             <div role="tabpanel" aria-labelledby="money-tab-overview" className="money-modal-panel">
               <p className="money-modal-summary">
                 Total trip spend: <strong>${paymentTotals.total.toFixed(2)}</strong>
-                {participantCount > 0 && (
+                {participantCount > 0 && userId && (
                   <>
                     {' · '}
-                    Your share (equal split): <strong>${paymentTotals.share.toFixed(2)}</strong>
+                    Your total spend: <strong>${paymentTotals.share.toFixed(2)}</strong>
                   </>
                 )}
               </p>
               {userId && paymentOverviewVsYou.kind === 'ok' ? (
                 <p className="money-modal-summary money-modal-summary--you">
-                  Your balance vs equal split:{' '}
+                  Your net balance:{' '}
                   <strong
                     className={
                       paymentOverviewVsYou.yourNetVsShare > SETTLEMENT_EPS
@@ -74,9 +75,8 @@ export default function MoneyModal({
                 </p>
               ) : null}
               <p className="money-modal-hint">
-                Amounts below are <strong>for you only</strong>: how each other traveler would settle
-                up with you if everyone split total spend equally.
-                (who pays whom in the minimal plan).
+                Amounts below are <strong>for you only</strong>, based on each stop&apos;s selected members:
+                who owes you (or you owe) in the minimal settlement plan.
               </p>
               {paymentOverviewVsYou.kind === 'empty' ? (
                 <p className="money-modal-empty">No participants on this trip yet.</p>
@@ -148,7 +148,20 @@ export default function MoneyModal({
                     </thead>
                     <tbody>
                       {allPayments.map((payment) => (
-                        <tr key={payment.id}>
+                        <tr
+                          key={payment.id}
+                          className="money-logs-row"
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => onSelectLogPayment?.(payment)}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' || event.key === ' ') {
+                              event.preventDefault()
+                              onSelectLogPayment?.(payment)
+                            }
+                          }}
+                          aria-label={`Open payment for ${payment.stopTitle || 'stop'}`}
+                        >
                           <td>{payment.dayDate || '—'}</td>
                           <td>{payment.payerDisplayName}</td>
                           <td>{payment.reason || '—'}</td>

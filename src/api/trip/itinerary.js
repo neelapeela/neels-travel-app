@@ -4,6 +4,47 @@ import { db } from '../firebase'
 import { lodgingBaseTitle } from '../../utils/lodging'
 import { normalizeStop } from './normalize'
 
+const hasOwn = (obj, key) => Object.prototype.hasOwnProperty.call(obj, key)
+
+const linkedStopKey = (stop) => {
+  if (!stop || (stop.stopType !== 'flight' && stop.stopType !== 'lodging')) return ''
+  if (stop.stopType === 'flight') {
+    const pairId = String(stop.metadata?.flightPairId || '').trim()
+    if (pairId) return `flight:pair:${pairId}`
+    const flightNumber = String(stop.metadata?.flightNumber || '').trim().toUpperCase()
+    const travelerId = String(stop.metadata?.travelerId || '').trim()
+    if (flightNumber && travelerId) return `flight:number:${flightNumber}:traveler:${travelerId}`
+    const participantIds = Array.isArray(stop.metadata?.participantIds)
+      ? stop.metadata.participantIds.map((id) => String(id || '').trim()).filter(Boolean).sort().join(',')
+      : ''
+    if (flightNumber && participantIds) return `flight:number:${flightNumber}:group:${participantIds}`
+    return ''
+  }
+  const lodgingId = String(stop.metadata?.lodgingId || '').trim()
+  if (lodgingId) return `lodging:id:${lodgingId}`
+  const location = String(stop.location || '').trim()
+  const baseTitle = lodgingBaseTitle(stop.title)
+  if (location || baseTitle) return `lodging:legacy:${location}|${baseTitle}`
+  return ''
+}
+
+const findLinkedStopRefs = (itinerary, sourceStop) => {
+  const key = linkedStopKey(sourceStop)
+  if (!key) return []
+  const refs = []
+  for (let dayIndex = 0; dayIndex < (itinerary || []).length; dayIndex += 1) {
+    const stops = itinerary[dayIndex]?.stops || []
+    for (let stopIndex = 0; stopIndex < stops.length; stopIndex += 1) {
+      const stop = stops[stopIndex]
+      if (!stop || stop.id === sourceStop.id) continue
+      if (stop.stopType !== sourceStop.stopType) continue
+      if (linkedStopKey(stop) !== key) continue
+      refs.push({ dayIndex, stopIndex })
+    }
+  }
+  return refs
+}
+
 export const addStopToTrip = async (tripId, date, stopData) => {
   if (!tripId || !date || !stopData) throw new Error('Missing required parameters')
 
@@ -75,6 +116,30 @@ export const updateStopInTrip = async (tripId, date, stopId, patch) => {
     stops: updatedStops
   }
 
+  const hasTicketPatch =
+    patch?.metadata && typeof patch.metadata === 'object' && hasOwn(patch.metadata, 'tickets')
+  if (hasTicketPatch) {
+    const sourceStop = itinerary[dayIndex].stops.find((stop) => stop.id === stopId)
+    if (sourceStop) {
+      const nextTickets = sourceStop.metadata?.tickets
+      const linkedRefs = findLinkedStopRefs(itinerary, sourceStop)
+      for (const ref of linkedRefs) {
+        const current = itinerary[ref.dayIndex].stops[ref.stopIndex]
+        const merged = {
+          ...current,
+          metadata: {
+            ...(current.metadata || {}),
+            tickets: nextTickets
+          }
+        }
+        itinerary[ref.dayIndex].stops[ref.stopIndex] = {
+          ...normalizeStop(merged, ref.stopIndex, itinerary[ref.dayIndex].date),
+          id: current.id
+        }
+      }
+    }
+  }
+
   await updateDoc(tripRef, {
     itinerary,
     updatedAt: new Date().toISOString()
@@ -125,29 +190,41 @@ export const addPaymentToStop = async (tripId, date, stopId, payment) => {
   const itinerary = [...(tripData.itinerary || [])]
   const dayIndex = itinerary.findIndex((day) => day.date === date)
   if (dayIndex < 0) throw new Error('Day not found')
+  const sourceStop = (itinerary[dayIndex].stops || []).find((stop) => stop.id === stopId)
+  if (!sourceStop) throw new Error('Stop not found')
+  const linkedRefs = findLinkedStopRefs(itinerary, sourceStop)
+  const refsByDay = new Map()
+  const addRef = (d, s) => {
+    if (!refsByDay.has(d)) refsByDay.set(d, new Set())
+    refsByDay.get(d).add(s)
+  }
+  addRef(dayIndex, (itinerary[dayIndex].stops || []).findIndex((stop) => stop.id === stopId))
+  for (const ref of linkedRefs) addRef(ref.dayIndex, ref.stopIndex)
 
-  const updatedStops = (itinerary[dayIndex].stops || []).map((stop) => {
-    if (stop.id !== stopId) return stop
-    const currentPayments = stop.payments || []
-    return {
-      ...stop,
-      payments: [
-        ...currentPayments,
-        {
-          id: uuidv4(),
-          payerId: payment.payerId,
-          payerName: payment.payerName,
-          reason: payment.reason,
-          amount,
-          createdAt: new Date().toISOString()
-        }
-      ]
-    }
+  const paymentId = uuidv4()
+  const nextPayment = {
+    id: paymentId,
+    payerId: payment.payerId,
+    payerName: payment.payerName,
+    reason: payment.reason,
+    amount,
+    createdAt: new Date().toISOString()
+  }
+
+  const nextItinerary = itinerary.map((day, dIdx) => {
+    const targetStops = refsByDay.get(dIdx)
+    if (!targetStops || targetStops.size === 0) return day
+    const nextStops = (day.stops || []).map((stop, sIdx) => {
+      if (!targetStops.has(sIdx)) return stop
+      const currentPayments = stop.payments || []
+      if (currentPayments.some((p) => p.id === paymentId)) return stop
+      return { ...stop, payments: [...currentPayments, nextPayment] }
+    })
+    return { ...day, stops: nextStops }
   })
 
-  itinerary[dayIndex] = { ...itinerary[dayIndex], stops: updatedStops }
   await updateDoc(tripRef, {
-    itinerary,
+    itinerary: nextItinerary,
     updatedAt: new Date().toISOString()
   })
 }
@@ -185,22 +262,35 @@ export const deletePaymentFromStop = async (tripId, date, stopId, paymentId) => 
   const itinerary = [...(tripData.itinerary || [])]
   const dayIndex = itinerary.findIndex((day) => day.date === date)
   if (dayIndex < 0) throw new Error('Day not found')
+  const sourceStop = (itinerary[dayIndex].stops || []).find((stop) => stop.id === stopId)
+  if (!sourceStop) throw new Error('Stop not found')
+  const linkedRefs = findLinkedStopRefs(itinerary, sourceStop)
+  const refsByDay = new Map()
+  const addRef = (d, s) => {
+    if (!refsByDay.has(d)) refsByDay.set(d, new Set())
+    refsByDay.get(d).add(s)
+  }
+  addRef(dayIndex, (itinerary[dayIndex].stops || []).findIndex((stop) => stop.id === stopId))
+  for (const ref of linkedRefs) addRef(ref.dayIndex, ref.stopIndex)
 
   let found = false
-  const updatedStops = (itinerary[dayIndex].stops || []).map((stop) => {
-    if (stop.id !== stopId) return stop
-    const payments = stop.payments || []
-    const nextPayments = payments.filter((p) => p.id !== paymentId)
-    if (nextPayments.length === payments.length) return stop
-    found = true
-    return { ...stop, payments: nextPayments }
+  const nextItinerary = itinerary.map((day, dIdx) => {
+    const targetStops = refsByDay.get(dIdx)
+    if (!targetStops || targetStops.size === 0) return day
+    const nextStops = (day.stops || []).map((stop, sIdx) => {
+      if (!targetStops.has(sIdx)) return stop
+      const payments = stop.payments || []
+      const nextPayments = payments.filter((p) => p.id !== paymentId)
+      if (nextPayments.length !== payments.length) found = true
+      return nextPayments.length === payments.length ? stop : { ...stop, payments: nextPayments }
+    })
+    return { ...day, stops: nextStops }
   })
 
   if (!found) throw new Error('Payment not found')
 
-  itinerary[dayIndex] = { ...itinerary[dayIndex], stops: updatedStops }
   await updateDoc(tripRef, {
-    itinerary,
+    itinerary: nextItinerary,
     updatedAt: new Date().toISOString()
   })
 }
@@ -348,3 +438,4 @@ export const updateDayTitleInTrip = async (tripId, date, title) => {
     })
   })
 }
+

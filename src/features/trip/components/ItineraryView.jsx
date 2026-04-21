@@ -15,6 +15,7 @@ export default function ItineraryView({
   onSelectStop,
   onMoveStop,
   onTimestampClick,
+  getStopColor,
   savesDisabled = false
 }) {
   const [allowDragReorder, setAllowDragReorder] = useState(false)
@@ -93,6 +94,7 @@ export default function ItineraryView({
                   className={`timeline-stop ${selectedStopId === stop.id ? 'active' : ''}${
                     touchHeldId === stop.id ? ' timeline-stop--touch-lifted' : ''
                   }${touchHiddenId === stop.id ? ' timeline-stop--touch-hidden' : ''}`}
+                  style={getStopColor ? { '--stop-accent': getStopColor(stop) } : undefined}
                   draggable={allowDragReorder && !savesDisabled}
                   onDragStart={(event) => {
                     event.dataTransfer.setData('text/plain', stop.id)

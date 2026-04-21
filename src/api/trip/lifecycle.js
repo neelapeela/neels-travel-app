@@ -5,6 +5,52 @@ import { getDatesBetween } from './dates'
 import { generateInviteCode } from './normalize'
 import { buildParticipantLabel } from '../../utils/participantLabels'
 
+const normalizeMemberIds = (value) => {
+  if (!Array.isArray(value)) return []
+  return Array.from(
+    new Set(
+      value
+        .map((id) => String(id || '').trim())
+        .filter(Boolean)
+    )
+  )
+}
+
+/**
+ * When a participant joins, explicit stop member arrays should include them by default.
+ * `null`/missing members already means "all participants", so those stops are unchanged.
+ */
+const addParticipantToAllExplicitStopMembers = async (tripId, userId) => {
+  if (!tripId || !userId) return
+  const tripRef = doc(db, 'trips', tripId)
+  const tripSnapshot = await getDoc(tripRef)
+  if (!tripSnapshot.exists()) return
+
+  const tripData = tripSnapshot.data()
+  const itinerary = Array.isArray(tripData.itinerary) ? tripData.itinerary : []
+  let changed = false
+
+  const nextItinerary = itinerary.map((day) => {
+    const stops = Array.isArray(day.stops) ? day.stops : []
+    let dayChanged = false
+    const nextStops = stops.map((stop) => {
+      if (!Array.isArray(stop?.members)) return stop
+      const memberIds = normalizeMemberIds(stop.members)
+      if (memberIds.includes(userId)) return stop
+      dayChanged = true
+      changed = true
+      return { ...stop, members: [...memberIds, userId] }
+    })
+    return dayChanged ? { ...day, stops: nextStops } : day
+  })
+
+  if (!changed) return
+  await updateDoc(tripRef, {
+    itinerary: nextItinerary,
+    updatedAt: new Date().toISOString()
+  })
+}
+
 export const createTripForUser = async (userId, tripData) => {
   if (!userId) throw new Error('User ID is required')
   if (!tripData.name || !tripData.destination) {
@@ -135,6 +181,8 @@ export const joinTripByCode = async (userId, inviteCode, memberProfile = null) =
     throw error
   }
 
+  await addParticipantToAllExplicitStopMembers(tripId, userId)
+
   return tripId
 }
 
@@ -158,6 +206,8 @@ export const joinTripById = async (userId, tripId, memberProfile = null) => {
     },
     { merge: true }
   )
+
+  await addParticipantToAllExplicitStopMembers(tripId, userId)
 
   return tripId
 }

@@ -8,6 +8,8 @@ export default function TripToolbar({
   newStopHour,
   showAddStopModal,
   setShowAddStopModal,
+  participants,
+  participantNames,
   dayTitleDraft,
   onDayTitleDraftChange,
   onSaveDayTitleBlur,
@@ -46,6 +48,8 @@ export default function TripToolbar({
           tripId={tripId}
           tripDate={selectedDate}
           initialHour={newStopHour}
+          participants={participants}
+          participantNames={participantNames}
         />
       )}
 

@@ -2,12 +2,21 @@ import { useEffect, useState } from 'react'
 import { BsX } from 'react-icons/bs'
 import { useAuth } from '../context/AuthContext'
 import { geocodeLocation, reverseGeocodeLocation, addStopToTrip } from '../api/trip'
+import MemberMultiSelect from '../features/trip/components/MemberMultiSelect'
 import '../App.css'
 
-export default function AddStopModal({ onClose, tripId, tripDate, initialHour = 9 }) {
+export default function AddStopModal({
+  onClose,
+  tripId,
+  tripDate,
+  initialHour = 9,
+  participants = [],
+  participantNames = {}
+}) {
   const { user } = useAuth()
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [members, setMembers] = useState(null) // null => all
   const [formData, setFormData] = useState({
     title: '',
     notes: '',
@@ -51,7 +60,8 @@ export default function AddStopModal({ onClose, tripId, tripDate, initialHour = 
         latitude: coords.lat,
         longitude: coords.lon,
         location: canonicalAddress,
-        createdBy: user?.uid || null
+        createdBy: user?.uid || null,
+        members
       })
 
       if (onClose) {
@@ -141,6 +151,14 @@ export default function AddStopModal({ onClose, tripId, tripDate, initialHour = 
               placeholder="Short details for your group"
             />
           </div>
+
+          <MemberMultiSelect
+            participants={participants}
+            participantNames={participantNames}
+            value={members}
+            onChange={setMembers}
+            disabled={loading}
+          />
 
           <div className="modal-actions">
             <button type="button" className="cancel-button" onClick={handleClose}>

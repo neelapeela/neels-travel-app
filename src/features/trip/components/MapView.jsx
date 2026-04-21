@@ -1,7 +1,9 @@
-import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Polyline, FeatureGroup, useMap } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
-import { formatStopTime } from '../../../utils/stopTime'
+import { useMemo } from 'react'
+import { formatStopTime, getSortMinutes } from '../../../utils/stopTime'
+import { formatFlightTimeZoneAtStop } from '../../../utils/stopTimezone'
 import { readCoord } from '../../../utils/mapboxRoute'
 import { useDebouncedDrivingRoute } from '../hooks/useDebouncedDrivingRoute'
 import { MAP_TILE_URL } from '../constants'
@@ -13,14 +15,18 @@ import {
   numberedStopOrder
 } from './map/markerIcons'
 import '../trip.css'
+import { colorForMembersKey, membersKey } from '../utils/stopMembers'
 
 /**
  * Popup content is portaled outside React-Leaflet context, so the map is passed from `MapInner`
  * (which calls `useMap()` under `MapContainer`).
  */
-function StopPopupBody({ stop, onSelectStop, leafletMap }) {
+function StopPopupBody({ stop, stopCalendarDate, onSelectStop, leafletMap }) {
   const title = stop.title || 'Stop'
-  const timeLine = formatStopTime(stop.stopTime, stop.timestampHour)
+  const tz =
+    stop.stopType === 'flight' ? formatFlightTimeZoneAtStop(stop, stopCalendarDate, 'full') : ''
+  const timeLine =
+    formatStopTime(stop.stopTime, stop.timestampHour) + (tz ? ` · ${tz}` : '')
   const locationLine = stop.location || 'Address not provided'
 
   if (!onSelectStop) {
@@ -50,6 +56,39 @@ function StopPopupBody({ stop, onSelectStop, leafletMap }) {
   )
 }
 
+function RouteLayer({ stops, color, groupKey }) {
+  const { regularRouteSegments, dottedFlightSegmentPositions, polylineKey } = useDebouncedDrivingRoute(stops)
+  const baseKey = `${groupKey}#${polylineKey}`
+  return (
+    <>
+      {regularRouteSegments.map((segment, index) => (
+        <FeatureGroup key={`${baseKey}-solid-group-${index}`}>
+          <Polyline
+            positions={segment}
+            pathOptions={{ color: '#F8FAFC', weight: 8, opacity: 0.55 }}
+          />
+          <Polyline
+            positions={segment}
+            pathOptions={{ color, weight: 5.5, opacity: 0.96 }}
+          />
+        </FeatureGroup>
+      ))}
+      {dottedFlightSegmentPositions.map((segment, index) => (
+        <FeatureGroup key={`${baseKey}-flight-group-${index}`}>
+          <Polyline
+            positions={segment}
+            pathOptions={{ color: '#F8FAFC', weight: 7, opacity: 0.45, dashArray: '8 9' }}
+          />
+          <Polyline
+            positions={segment}
+            pathOptions={{ color, weight: 4.5, opacity: 0.95, dashArray: '7 9' }}
+          />
+        </FeatureGroup>
+      ))}
+    </>
+  )
+}
+
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
@@ -62,39 +101,45 @@ function MapInner({
   shouldResizeMap,
   layoutResizeKey,
   sortedStops,
-  routeToDraw,
-  polylineKey,
+  routeGroups,
   focusStop,
   focusLeftPaddingPx,
   fitViewKey,
+  stopCalendarDate,
+  participants = [],
   onSelectStop
 }) {
   const leafletMap = useMap()
+  const markerColorFor = (stop) => {
+    const key = membersKey(stop?.members, participants)
+    return colorForMembersKey(key)
+  }
 
   return (
     <>
       <TileLayer attribution="" url={MAP_TILE_URL} />
-      {routeToDraw.length > 1 && (
-        <Polyline
-          key={polylineKey}
-          positions={routeToDraw}
-          pathOptions={{ color: '#8B6F5A', weight: 5, opacity: 0.92 }}
-        />
-      )}
+      {routeGroups.map((group) => (
+        <RouteLayer key={group.key} stops={group.stops} color={group.color} groupKey={group.key} />
+      ))}
       {sortedStops.map((stop, index) => (
         <Marker
           key={stop.id}
           position={[readCoord(stop.latitude), readCoord(stop.longitude)]}
           icon={
             stop.stopType === 'flight'
-              ? createSpecialIcon('✈')
+              ? createSpecialIcon('✈', markerColorFor(stop))
               : stop.stopType === 'lodging'
-                ? createLodgingHomeIcon()
-                : createStopIcon(numberedStopOrder(sortedStops, index))
+                ? createLodgingHomeIcon(markerColorFor(stop))
+                : createStopIcon(numberedStopOrder(sortedStops, index), markerColorFor(stop))
           }
         >
           <Popup>
-            <StopPopupBody stop={stop} onSelectStop={onSelectStop} leafletMap={leafletMap} />
+            <StopPopupBody
+              stop={stop}
+              stopCalendarDate={stopCalendarDate}
+              onSelectStop={onSelectStop}
+              leafletMap={leafletMap}
+            />
           </Popup>
         </Marker>
       ))}
@@ -113,9 +158,42 @@ export default function MapView({
   focusStop,
   focusLeftPaddingPx = 0,
   fitViewKey = '',
+  stopCalendarDate = '',
+  participants = [],
   onSelectStop
 }) {
-  const { sortedStops, routeToDraw, polylineKey } = useDebouncedDrivingRoute(stops)
+  const sortedStops = useMemo(() => [...(stops || [])].sort((a, b) => getSortMinutes(a) - getSortMinutes(b)), [stops])
+  const routeGroups = useMemo(() => {
+    const allIds = participants || []
+    const keyFor = (stop) => membersKey(stop?.members, allIds)
+    const keys = new Set()
+    for (const stop of stops || []) {
+      keys.add(keyFor(stop))
+    }
+    if (keys.size === 0) keys.add('ALL')
+    const unique = Array.from(keys.values())
+    return unique.map((key) => {
+      const includeShared = key !== 'ALL'
+      const filtered = (stops || []).filter((s) => {
+        const k = keyFor(s)
+        return k === key || (includeShared && k === 'ALL')
+      })
+
+      // In non-ALL groups, shared "ALL members" stops are connector anchors only.
+      // Collapse consecutive shared stops so ALL->ALL legs stay exclusively on the brown ALL route.
+      const normalizedStops =
+        key === 'ALL'
+          ? filtered
+          : filtered.filter((stop, index, arr) => {
+              const curr = keyFor(stop)
+              if (curr !== 'ALL') return true
+              const prev = index > 0 ? keyFor(arr[index - 1]) : ''
+              return prev !== 'ALL'
+            })
+
+      return { key, color: colorForMembersKey(key), stops: normalizedStops }
+    })
+  }, [stops, participants])
 
   return (
     <div className="map-view">
@@ -131,11 +209,12 @@ export default function MapView({
           shouldResizeMap={shouldResizeMap}
           layoutResizeKey={layoutResizeKey}
           sortedStops={sortedStops}
-          routeToDraw={routeToDraw}
-          polylineKey={polylineKey}
+          routeGroups={routeGroups}
           focusStop={focusStop}
           focusLeftPaddingPx={focusLeftPaddingPx}
           fitViewKey={fitViewKey}
+          stopCalendarDate={stopCalendarDate}
+          participants={participants}
           onSelectStop={onSelectStop}
         />
       </MapContainer>

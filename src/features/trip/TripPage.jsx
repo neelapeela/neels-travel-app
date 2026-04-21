@@ -1,5 +1,5 @@
 import { useNavigate, useParams } from 'react-router-dom'
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useOffline } from '../../context/OfflineContext'
 import MapView from './components/MapView'
@@ -8,7 +8,6 @@ import {
   ensureTripInviteMapping,
   geocodeLocation,
   reverseGeocodeLocation,
-  addPaymentToStop,
   deleteStopFromTrip,
   deletePaymentFromStop,
   addSpecialStopToTrip,
@@ -32,6 +31,8 @@ import { useTripSpecialStopGroups } from '../../hooks/useTripSpecialStopGroups'
 import { useRequestCache } from '../../hooks/useRequestCache'
 import { useTripDaySelection } from '../../hooks/useTripDaySelection'
 import { normalizeTimeInput } from '../../utils/stopTime'
+import { findTimeZoneIdAtCoordinate } from '../../utils/stopTimezone'
+import { membersKey, colorForMembersKey, normalizeMembersForParticipants, normalizeMembersValue } from './utils/stopMembers'
 import { isDateWithinRange, formatDateHeading } from '../../utils/tripDates'
 import { hasSeenTripTutorial, markTripTutorialSeen } from '../../utils/tripTutorialStorage'
 import { SHARE_FEEDBACK_CLEAR_MS } from './constants'
@@ -41,13 +42,21 @@ import StopViewSheet from './components/StopViewSheet'
 import TripIsland from './components/TripIsland'
 import TripSettingsPopover from './components/TripSettingsPopover'
 import MoneyModal from './components/modals/MoneyModal'
-import AddPaymentModal from './components/modals/AddPaymentModal'
 import PaymentDetailModal from './components/modals/PaymentDetailModal'
 import TripOnboardingCarousel from './components/TripOnboardingCarousel'
 import FlightsModal from './components/modals/FlightsModal'
 import LodgingModal from './components/modals/LodgingModal'
 import StopTicketsModal from './components/modals/StopTicketsModal'
 import './trip.css'
+
+function membersValueEqual(left, right) {
+  const a = normalizeMembersValue(left)
+  const b = normalizeMembersValue(right)
+  if (a == null && b == null) return true
+  if (a == null || b == null) return false
+  if (a.length !== b.length) return false
+  return a.every((id, index) => id === b[index])
+}
 
 export default function TripPage() {
   const { tripId } = useParams()
@@ -70,7 +79,8 @@ export default function TripPage() {
     title: '',
     location: '',
     stopTime: '09:00',
-    notes: ''
+    notes: '',
+    members: null
   })
   const [savingStop, setSavingStop] = useState(false)
   const [dayTitleDraft, setDayTitleDraft] = useState('')
@@ -80,13 +90,12 @@ export default function TripPage() {
   const [paymentsMoneyTab, setPaymentsMoneyTab] = useState('overview')
   const [showFlightsModal, setShowFlightsModal] = useState(false)
   const [showLodgingModal, setShowLodgingModal] = useState(false)
+  const [pendingStopEditId, setPendingStopEditId] = useState(null)
   const [tripNotesDraft, setTripNotesDraft] = useState('')
   const [showTripOnboarding, setShowTripOnboarding] = useState(false)
-  const [paymentForm, setPaymentForm] = useState({ reason: '', amount: '' })
-  const [showAddPaymentModal, setShowAddPaymentModal] = useState(false)
   const [showStopTicketsModal, setShowStopTicketsModal] = useState(false)
+  const [ticketsModalInitialTab, setTicketsModalInitialTab] = useState('tickets')
   const [paymentDetailModal, setPaymentDetailModal] = useState(null)
-  const [addPaymentError, setAddPaymentError] = useState('')
   const [flightNumbersInput, setFlightNumbersInput] = useState('')
   const [flightLookupPreview, setFlightLookupPreview] = useState([])
   const [lodgingForm, setLodgingForm] = useState({
@@ -97,11 +106,21 @@ export default function TripPage() {
     checkOutDate: '',
     checkOutTime: '11:00'
   })
+  const [lodgingMembers, setLodgingMembers] = useState(null) // null => all
   const [flightLookupLoading, setFlightLookupLoading] = useState(false)
   const [flightLookupError, setFlightLookupError] = useState('')
+  const [flightMembers, setFlightMembers] = useState(null) // null => all
   const geocodeCache = useRequestCache()
   const reverseGeocodeCache = useRequestCache()
   const flightLookupCache = useRequestCache()
+  const normalizedTripParticipants = useMemo(
+    () => normalizeMembersValue(trip?.participants) || [],
+    [trip?.participants]
+  )
+  const sanitizeMembersForTrip = useCallback(
+    (members) => normalizeMembersForParticipants(members, normalizedTripParticipants),
+    [normalizedTripParticipants]
+  )
 
   const {
     selectedDay,
@@ -177,6 +196,11 @@ export default function TripPage() {
     setShowAddStopModal(true)
   }
 
+  const getStopColor = (stop) => {
+    const key = membersKey(stop?.members, trip?.participants || [])
+    return colorForMembersKey(key)
+  }
+
   useEffect(() => {
     if (!selectedStop) {
       setIsEditingStop(false)
@@ -186,16 +210,38 @@ export default function TripPage() {
       title: selectedStop.title || '',
       location: selectedStop.location || '',
       stopTime: selectedStop.stopTime || `${String(selectedStop.timestampHour ?? 9).padStart(2, '0')}:00`,
-      notes: selectedStop.notes || ''
+      notes: selectedStop.notes || '',
+      members: sanitizeMembersForTrip(selectedStop.members)
     })
     setIsEditingStop(false)
-  }, [selectedStop])
+  }, [selectedStop, sanitizeMembersForTrip])
 
   useEffect(() => {
-    setShowAddPaymentModal(false)
+    setFlightMembers((prev) => {
+      const next = sanitizeMembersForTrip(prev)
+      return membersValueEqual(prev, next) ? prev : next
+    })
+    setLodgingMembers((prev) => {
+      const next = sanitizeMembersForTrip(prev)
+      return membersValueEqual(prev, next) ? prev : next
+    })
+    setStopForm((prev) => {
+      const nextMembers = sanitizeMembersForTrip(prev.members)
+      if (membersValueEqual(prev.members, nextMembers)) return prev
+      return { ...prev, members: nextMembers }
+    })
+  }, [sanitizeMembersForTrip])
+
+  useEffect(() => {
+    if (!pendingStopEditId || !selectedStop?.id) return
+    if (selectedStop.id !== pendingStopEditId) return
+    setIsEditingStop(true)
+    setPendingStopEditId(null)
+  }, [pendingStopEditId, selectedStop?.id])
+
+  useEffect(() => {
     setPaymentDetailModal(null)
-    setAddPaymentError('')
-    setShowStopTicketsModal(false)
+    setTicketsModalInitialTab('tickets')
   }, [selectedStopId])
 
   useEffect(() => {
@@ -205,7 +251,6 @@ export default function TripPage() {
     setShowFlightsModal(false)
     setShowLodgingModal(false)
     setShowPaymentsModal(false)
-    setShowAddPaymentModal(false)
     setPaymentDetailModal(null)
   }, [isOnline])
 
@@ -309,43 +354,32 @@ export default function TripPage() {
     }
   }
 
-  const handleAddPayment = async () => {
-    if (!selectedStopId || !selectedDate) return
-    const amount = Number(paymentForm.amount)
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setAddPaymentError('Enter an amount greater than zero.')
-      return
-    }
-    setAddPaymentError('')
-    try {
-      await addPaymentToStop(tripId, selectedDate, selectedStopId, {
-        payerId: user?.uid || '',
-        payerName: user?.displayName || user?.email || 'Unknown',
-        reason: paymentForm.reason.trim(),
-        amount
-      })
-      setPaymentForm({ reason: '', amount: '' })
-      setShowAddPaymentModal(false)
-    } catch (error) {
-      console.error('Failed to add payment', error)
-      setAddPaymentError(error?.message || 'Could not save payment.')
-    }
-  }
-
   const createSpecialStop = async (base, dateOverride) => {
     const coords = await getCachedGeocode(base.location)
     if (!coords) return
     const canonical = (await getCachedReverseGeocode(coords.lat, coords.lon)) || base.location
+    const metadata = { ...(base.metadata || {}) }
+    const tzId = findTimeZoneIdAtCoordinate(coords.lat, coords.lon)
+    if (tzId) metadata.stopTimezone = tzId
+    const baseNotes = (base.notes || '').trim()
+    const tzLabel = tzId ? tzId.replace(/_/g, ' ') : ''
+    const notes =
+      base.stopType === 'flight' && tzLabel
+        ? baseNotes.includes(tzLabel)
+          ? baseNotes
+          : `${baseNotes} (${tzLabel})`.trim()
+        : baseNotes
     await addSpecialStopToTrip(tripId, dateOverride || selectedDate, {
       title: base.title,
-      notes: base.notes || '',
+      notes,
       location: canonical,
       stopTime: base.stopTime,
       latitude: coords.lat,
       longitude: coords.lon,
+      members: sanitizeMembersForTrip(base.members),
       stopType: base.stopType,
       createdBy: user?.uid || null,
-      metadata: base.metadata || {}
+      metadata
     })
   }
 
@@ -354,20 +388,29 @@ export default function TripPage() {
     const selectedFlights = flightLookupPreview.filter((flight) => flight.selected)
     if (selectedFlights.length === 0) return
     const skipped = []
+    const travelerId = user?.uid || null
+    const participantIds = travelerId ? [travelerId] : []
     for (const flight of selectedFlights) {
+      const flightPairId = crypto.randomUUID()
+      const flightNumber = String(flight.flightNumber || '').trim().toUpperCase()
       const depInRange = isDateWithinRange(flight.departureDate, trip.startDate, trip.endDate)
       const arrInRange = isDateWithinRange(flight.arrivalDate, trip.startDate, trip.endDate)
 
       if (depInRange) {
         await createSpecialStop(
           {
-            title: `${flight.flightNumber || 'Flight'} Departure`,
-            notes: `Flight ${flight.flightNumber || ''} (${flight.departureTimezone || 'local'})`,
+            title: `${flightNumber || 'Flight'} Departure`,
+            notes: `Flight ${flightNumber}`.trim(),
             location: flight.departureAddress,
             stopTime: flight.departureTime || '08:00',
             stopType: 'flight',
+            members: flightMembers,
             metadata: {
-              flightNumber: flight.flightNumber || ''
+              flightNumber,
+              flightLeg: 'departure',
+              flightPairId,
+              travelerId,
+              participantIds
             }
           },
           flight.departureDate
@@ -379,13 +422,18 @@ export default function TripPage() {
       if (arrInRange) {
         await createSpecialStop(
           {
-            title: `${flight.flightNumber || 'Flight'} Arrival`,
-            notes: `Flight ${flight.flightNumber || ''} (${flight.arrivalTimezone || 'local'})`,
+            title: `${flightNumber || 'Flight'} Arrival`,
+            notes: `Flight ${flightNumber}`.trim(),
             location: flight.arrivalAddress,
             stopTime: flight.arrivalTime || '12:00',
             stopType: 'flight',
+            members: flightMembers,
             metadata: {
-              flightNumber: flight.flightNumber || ''
+              flightNumber,
+              flightLeg: 'arrival',
+              flightPairId,
+              travelerId,
+              participantIds
             }
           },
           flight.arrivalDate
@@ -484,6 +532,27 @@ export default function TripPage() {
     }
   }
 
+  const openStopInEditor = (stop) => {
+    if (!stop?.id || !stop?.date) return
+    setShowFlightsModal(false)
+    setShowLodgingModal(false)
+    setSelectedDate(stop.date)
+    setSelectedStopId(stop.id)
+    setPendingStopEditId(stop.id)
+  }
+
+  const openStopForAction = (stop, type) => {
+    if (!stop?.id || !stop?.date || !type) return
+    setShowFlightsModal(false)
+    setShowLodgingModal(false)
+    setSelectedDate(stop.date)
+    setSelectedStopId(stop.id)
+    if (type === 'tickets') {
+      setTicketsModalInitialTab('tickets')
+      setShowStopTicketsModal(true)
+    }
+  }
+
   const handleAddLodgingStops = async () => {
     if (!trip) return
     const label = lodgingForm.name.trim() || 'Lodging'
@@ -506,6 +575,7 @@ export default function TripPage() {
           notes: 'Lodging check-in',
           location: addr,
           stopTime: checkInTime,
+          members: lodgingMembers,
           stopType: 'lodging',
           metadata: { lodgingId, lodgingLabel: label }
         },
@@ -522,6 +592,7 @@ export default function TripPage() {
           notes: 'Lodging check-out',
           location: addr,
           stopTime: checkOutTime,
+          members: lodgingMembers,
           stopType: 'lodging',
           metadata: { lodgingId, lodgingLabel: label }
         },
@@ -552,7 +623,8 @@ export default function TripPage() {
         title: stopForm.title.trim(),
         location: stopForm.location.trim(),
         stopTime: stopForm.stopTime,
-        notes: stopForm.notes.trim()
+        notes: stopForm.notes.trim(),
+        members: sanitizeMembersForTrip(stopForm.members)
       }
 
       const locationChanged = patch.location !== (selectedStop.location || '')
@@ -589,7 +661,6 @@ export default function TripPage() {
       await deleteStopFromTrip(tripId, selectedDate, selectedStopId)
       setSelectedStopId(null)
       setPaymentDetailModal(null)
-      setShowAddPaymentModal(false)
       setIsEditingStop(false)
     } catch (error) {
       console.error('Failed to delete stop:', error)
@@ -608,6 +679,14 @@ export default function TripPage() {
     }
   }
 
+  const handleOpenPaymentFromLog = (payment) => {
+    if (!payment?.id) return
+    if (payment.dayDate) setSelectedDate(payment.dayDate)
+    if (payment.stopId) setSelectedStopId(payment.stopId)
+    setShowPaymentsModal(false)
+    setPaymentDetailModal(payment)
+  }
+
   return (
     <div className="trip-page">
       {staleReadCache && (
@@ -621,6 +700,8 @@ export default function TripPage() {
         newStopHour={newStopHour}
         showAddStopModal={showAddStopModal}
         setShowAddStopModal={setShowAddStopModal}
+        participants={trip?.participants || []}
+        participantNames={trip?.participantNames || {}}
         dayTitleDraft={dayTitleDraft}
         onDayTitleDraftChange={setDayTitleDraft}
         onSaveDayTitleBlur={handleSaveDayTitle}
@@ -683,6 +764,8 @@ export default function TripPage() {
                   focusStop={selectedStop}
                   focusLeftPaddingPx={selectedStop ? mapLeftInsetPx : 0}
                   fitViewKey={selectedDate || ''}
+                  stopCalendarDate={selectedDate || ''}
+                  participants={trip?.participants || []}
                   onSelectStop={setSelectedStopId}
                 />
               )}
@@ -690,6 +773,9 @@ export default function TripPage() {
             {selectedStop && (
               <StopViewSheet
                 ref={stopSheetRef}
+                participants={trip?.participants || []}
+                participantNames={trip?.participantNames || {}}
+                stopCalendarDate={selectedDate || ''}
                 selectedStop={selectedStop}
                 isEditingStop={isEditingStop}
                 setIsEditingStop={setIsEditingStop}
@@ -699,12 +785,6 @@ export default function TripPage() {
                 stopForm={stopForm}
                 onStopFormChange={handleStopFormChange}
                 onSaveStop={handleSaveStop}
-                onOpenAddPayment={() => {
-                  setAddPaymentError('')
-                  setPaymentForm({ reason: '', amount: '' })
-                  setShowAddPaymentModal(true)
-                }}
-                onSelectPaymentDetail={setPaymentDetailModal}
                 onOpenTickets={() => setShowStopTicketsModal(true)}
                 savesDisabled={savesDisabled}
                 ticketsModalOpen={showStopTicketsModal}
@@ -763,6 +843,7 @@ export default function TripPage() {
                   onSelectStop={setSelectedStopId}
                   onMoveStop={handleStopHourChange}
                   onTimestampClick={handleTimestampClick}
+                  getStopColor={getStopColor}
                   savesDisabled={savesDisabled}
                 />
               </div>
@@ -774,6 +855,10 @@ export default function TripPage() {
       {showFlightsModal && (
         <FlightsModal
           onClose={() => setShowFlightsModal(false)}
+          participants={trip?.participants || []}
+          participantNames={trip?.participantNames || {}}
+          members={flightMembers}
+          onMembersChange={setFlightMembers}
           flightNumbersInput={flightNumbersInput}
           onFlightNumbersInputChange={setFlightNumbersInput}
           flightLookupLoading={flightLookupLoading}
@@ -783,6 +868,8 @@ export default function TripPage() {
           onFlightPreviewChange={handleFlightPreviewChange}
           onRemoveFlightPreview={handleRemoveFlightPreview}
           addedFlights={addedFlights}
+          onEditFlightStop={openStopInEditor}
+          onOpenFlightTickets={(stop) => openStopForAction(stop, 'tickets')}
           onDeleteFlight={handleDeleteFlight}
           onCreateStops={handleAddFlightStops}
           createDisabled={
@@ -794,9 +881,15 @@ export default function TripPage() {
       {showLodgingModal && (
         <LodgingModal
           onClose={() => setShowLodgingModal(false)}
+          participants={trip?.participants || []}
+          participantNames={trip?.participantNames || {}}
+          members={lodgingMembers}
+          onMembersChange={setLodgingMembers}
           lodgingForm={lodgingForm}
           onLodgingFormChange={setLodgingForm}
           addedLodgings={addedLodgings}
+          onEditLodgingStop={openStopInEditor}
+          onOpenLodgingTickets={(stop) => openStopForAction(stop, 'tickets')}
           onDeleteLodging={handleDeleteLodging}
           onAddLodging={handleAddLodgingStops}
           addDisabled={!trip?.itinerary?.length || !lodgingForm.address.trim()}
@@ -811,18 +904,9 @@ export default function TripPage() {
           paymentTotals={paymentTotals}
           paymentOverviewVsYou={paymentOverviewVsYou}
           allPayments={allPayments}
+          onSelectLogPayment={handleOpenPaymentFromLog}
           userId={user?.uid}
           participantCount={(trip?.participants || []).length}
-        />
-      )}
-
-      {showAddPaymentModal && (
-        <AddPaymentModal
-          onClose={() => setShowAddPaymentModal(false)}
-          paymentForm={paymentForm}
-          onPaymentFormChange={setPaymentForm}
-          addPaymentError={addPaymentError}
-          onSave={handleAddPayment}
         />
       )}
 
@@ -832,8 +916,13 @@ export default function TripPage() {
           date={selectedDate}
           stop={selectedStop}
           stopTitle={selectedStop.title}
+          onSelectPaymentDetail={setPaymentDetailModal}
+          initialTab={ticketsModalInitialTab}
           savesDisabled={savesDisabled}
-          onClose={() => setShowStopTicketsModal(false)}
+          onClose={() => {
+            setShowStopTicketsModal(false)
+            setTicketsModalInitialTab('tickets')
+          }}
         />
       )}
 

@@ -10,13 +10,18 @@ import {
   BsXLg
 } from 'react-icons/bs'
 import { formatStopTime } from '../../../utils/stopTime'
+import { formatFlightTimeZoneAtStop } from '../../../utils/stopTimezone'
 import { useMobileStopModal } from '../../../hooks/useStopSheetHeight'
 import { openDrivingDirectionsFromCurrentLocation } from '../../../utils/mapsDirectionsUrl'
 import { readCoord, stopHasValidMapCoords } from '../../../utils/mapboxRoute'
+import { normalizeMembersForParticipants } from '../utils/stopMembers'
 import StopDirectionsPickerModal from './modals/StopDirectionsPickerModal'
 
 const StopViewSheet = forwardRef(function StopViewSheet(
   {
+    stopCalendarDate = '',
+    participants = [],
+    participantNames = {},
     selectedStop,
     isEditingStop,
     setIsEditingStop,
@@ -26,8 +31,6 @@ const StopViewSheet = forwardRef(function StopViewSheet(
     stopForm,
     onStopFormChange,
     onSaveStop,
-    onOpenAddPayment,
-    onSelectPaymentDetail,
     onOpenTickets,
     savesDisabled = false,
     ticketsModalOpen = false
@@ -84,6 +87,32 @@ const StopViewSheet = forwardRef(function StopViewSheet(
   const canNavigate = stopHasValidMapCoords(selectedStop)
   const navLat = readCoord(selectedStop?.latitude)
   const navLng = readCoord(selectedStop?.longitude)
+  const flightTimeZoneLabel =
+    selectedStop?.stopType === 'flight'
+      ? formatFlightTimeZoneAtStop(selectedStop, stopCalendarDate, 'full')
+      : ''
+  const allMemberIds = Array.isArray(participants) ? participants.filter(Boolean) : []
+  const visibleMemberIds = normalizeMembersForParticipants(selectedStop?.members, allMemberIds) || allMemberIds
+  const selectedMemberIds = Array.isArray(stopForm?.members) ? stopForm.members : allMemberIds
+  const allMembersSelected =
+    allMemberIds.length > 0 &&
+    selectedMemberIds.length === allMemberIds.length &&
+    allMemberIds.every((id) => selectedMemberIds.includes(id))
+
+  const writeMembers = (nextIds) => {
+    const normalized = Array.from(new Set((nextIds || []).filter(Boolean)))
+    const asAll = normalized.length === 0 || normalized.length === allMemberIds.length
+    onStopFormChange({
+      target: { name: 'members', value: asAll ? null : normalized }
+    })
+  }
+
+  const toggleMember = (id) => {
+    const next = selectedMemberIds.includes(id)
+      ? selectedMemberIds.filter((v) => v !== id)
+      : [...selectedMemberIds, id]
+    writeMembers(next)
+  }
 
   const directionsPortal =
     directionsPickerOpen &&
@@ -200,42 +229,32 @@ const StopViewSheet = forwardRef(function StopViewSheet(
               </div>
               <div className="stop-view-row">
                 <span>Time</span>
-                <strong>{formatStopTime(selectedStop.stopTime, selectedStop.timestampHour)}</strong>
+                <strong>
+                  {formatStopTime(selectedStop.stopTime, selectedStop.timestampHour)}
+                  {flightTimeZoneLabel ? (
+                    <span className="stop-view-timezone"> · {flightTimeZoneLabel}</span>
+                  ) : null}
+                </strong>
               </div>
               <div className="stop-view-row">
                 <span>Notes</span>
                 <strong>{selectedStop.notes || 'No notes yet'}</strong>
               </div>
-              <div className="stop-view-payments">
-                <span className="stop-view-payments-label">Payments</span>
-                <button
-                  type="button"
-                  className="stop-view-add-payment-btn"
-                  onClick={onOpenAddPayment}
-                  disabled={savesDisabled}
-                  title={savesDisabled ? 'Connect to add payments' : undefined}
-                >
-                  Add payment
-                </button>
-                {(selectedStop.payments || []).length > 0 ? (
-                  <ul className="stop-payment-pills" aria-label="Payments for this stop">
-                    {(selectedStop.payments || []).map((payment) => (
-                      <li key={payment.id}>
-                        <button
-                          type="button"
-                          className="stop-payment-pill"
-                          onClick={() => onSelectPaymentDetail(payment)}
-                          disabled={savesDisabled}
-                          title={savesDisabled ? 'Payment details when online' : undefined}
-                        >
-                          {payment.payerName} – ${Number(payment.amount || 0).toFixed(2)}
-                        </button>
+              <div className="stop-view-members">
+                <span className="stop-view-members-label">Members</span>
+                <ul className="stop-member-pills" aria-label="Members for this stop">
+                  {visibleMemberIds.length > 0 ? (
+                    visibleMemberIds.map((memberId) => (
+                      <li key={memberId}>
+                        <span className="stop-member-pill">{participantNames?.[memberId] || 'Member'}</span>
                       </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="stop-payment-empty">No payments yet</p>
-                )}
+                    ))
+                  ) : (
+                    <li>
+                      <span className="stop-member-pill">All members</span>
+                    </li>
+                  )}
+                </ul>
               </div>
             </>
           ) : (
@@ -245,9 +264,47 @@ const StopViewSheet = forwardRef(function StopViewSheet(
               <label htmlFor="stop-location-edit">Address</label>
               <input id="stop-location-edit" name="location" value={stopForm.location} onChange={onStopFormChange} />
               <label htmlFor="stop-time-edit">Time</label>
-              <input type="time" id="stop-time-edit" name="stopTime" value={stopForm.stopTime} onChange={onStopFormChange} />
+              <input
+                type="time"
+                id="stop-time-edit"
+                name="stopTime"
+                value={stopForm.stopTime}
+                onChange={onStopFormChange}
+                aria-describedby={selectedStop?.stopType === 'flight' && flightTimeZoneLabel ? 'stop-timezone-hint' : undefined}
+              />
+              {selectedStop?.stopType === 'flight' && flightTimeZoneLabel ? (
+                <p className="stop-view-timezone-hint" id="stop-timezone-hint">
+                  Local time zone at this stop&apos;s map pin: {flightTimeZoneLabel}
+                </p>
+              ) : null}
               <label htmlFor="stop-notes-edit">Notes</label>
               <textarea id="stop-notes-edit" name="notes" rows={4} value={stopForm.notes} onChange={onStopFormChange} />
+              <div className="stop-view-edit-members">
+                <span className="stop-view-edit-members__label">Members</span>
+                <div className="stop-view-edit-members__pills">
+                  <button
+                    type="button"
+                    className={`stop-view-edit-members__pill${allMembersSelected ? ' is-active' : ''}`}
+                    onClick={() => writeMembers([])}
+                    disabled={savingStop || savesDisabled}
+                  >
+                    Select all
+                  </button>
+                  {allMemberIds.map((memberId) => (
+                    <button
+                      key={memberId}
+                      type="button"
+                      className={`stop-view-edit-members__pill${
+                        selectedMemberIds.includes(memberId) ? ' is-active' : ''
+                      }`}
+                      onClick={() => toggleMember(memberId)}
+                      disabled={savingStop || savesDisabled}
+                    >
+                      {participantNames?.[memberId] || 'Member'}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
         </div>

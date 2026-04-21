@@ -12,6 +12,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@photostructure/tz-lookup": "^11.5.0",
     "firebase": "^12.8.0",
     "leaflet": "^1.9.4",
     "react": "^18.2.0",

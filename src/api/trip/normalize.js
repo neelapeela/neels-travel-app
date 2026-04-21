@@ -44,6 +44,13 @@ const parseCoordinate = (value) => {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+const normalizeMembers = (value) => {
+  if (value == null) return null // null/undefined => treat as "all trip members"
+  if (!Array.isArray(value)) return null
+  const cleaned = value.map((v) => String(v || '').trim()).filter(Boolean)
+  return cleaned.length ? Array.from(new Set(cleaned)) : null
+}
+
 export const normalizeStop = (stop, index = 0, date = 'day') => ({
   id: stop.id || `${date}-${index}-${stop.title || stop.stopName || 'stop'}`,
   title: stop.title || stop.stopName || `Stop ${index + 1}`,
@@ -55,6 +62,7 @@ export const normalizeStop = (stop, index = 0, date = 'day') => ({
   latitude: parseCoordinate(stop.latitude),
   longitude: parseCoordinate(stop.longitude),
   createdBy: stop.createdBy || null,
+  members: normalizeMembers(stop.members),
   stopType: stop.stopType || 'regular',
   metadata: stop.metadata || {},
   payments: (stop.payments || []).map((payment) => ({
