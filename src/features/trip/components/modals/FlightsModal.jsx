@@ -9,11 +9,7 @@ export default function FlightsModal({
   participantNames,
   members,
   onMembersChange,
-  flightNumbersInput,
-  onFlightNumbersInputChange,
-  flightLookupLoading,
-  flightLookupError,
-  onLookup,
+  onAddFlight,
   flightLookupPreview,
   onFlightPreviewChange,
   onRemoveFlightPreview,
@@ -75,21 +71,14 @@ export default function FlightsModal({
                 label="Create flights for"
               />
               <p className="setup-subtitle">
-                Add one or more flight numbers. We will fetch details and create departure/arrival stops.
+                Add flights manually, then fill in departure and arrival details for each one.
               </p>
-              <textarea
-                rows={3}
-                placeholder="UAL1325, UA847, AA120 (comma, space, or new line separated)"
-                value={flightNumbersInput}
-                onChange={(event) => onFlightNumbersInputChange(event.target.value)}
-              />
-              <button type="button" onClick={onLookup} disabled={flightLookupLoading}>
-                {flightLookupLoading ? 'Looking up...' : 'Lookup Flights'}
+              <button type="button" onClick={onAddFlight}>
+                Add Flight
               </button>
-              {flightLookupError && <p className="join-error">{flightLookupError}</p>}
               {flightLookupPreview.length > 0 && (
                 <div className="flights-preview-section">
-                  <h4 className="flights-preview-section__title">Lookup results</h4>
+                  <h4 className="flights-preview-section__title">Flights to add</h4>
                   <p className="flights-preview-section__hint">
                     Each block is one flight — edit details or remove flights you do not want.
                   </p>
@@ -133,7 +122,7 @@ export default function FlightsModal({
                           }
                           placeholder="Flight number"
                         />
-                        <label>Departure</label>
+                        <label>Departure airport</label>
                         <input
                           value={flight.departureAddress || ''}
                           onChange={(event) =>
@@ -156,7 +145,7 @@ export default function FlightsModal({
                             }
                           />
                         </div>
-                        <label>Arrival</label>
+                        <label>Arrival airport</label>
                         <input
                           value={flight.arrivalAddress || ''}
                           onChange={(event) =>

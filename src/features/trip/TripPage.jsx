@@ -13,7 +13,6 @@ import {
   addSpecialStopToTrip,
   deleteFlightStopsAcrossTrip,
   deleteLodgingStopsAcrossTrip,
-  lookupFlightByNumber,
   removeParticipantFromTrip,
   deleteTripForCreator,
   upsertParticipantNameOnTrip,
@@ -99,7 +98,6 @@ export default function TripPage() {
   const [showTripOnboarding, setShowTripOnboarding] = useState(false)
   const [ticketsModalInitialTab, setTicketsModalInitialTab] = useState('tickets')
   const [paymentDetailModal, setPaymentDetailModal] = useState(null)
-  const [flightNumbersInput, setFlightNumbersInput] = useState('')
   const [flightLookupPreview, setFlightLookupPreview] = useState([])
   const [lodgingForm, setLodgingForm] = useState({
     name: '',
@@ -110,12 +108,9 @@ export default function TripPage() {
     checkOutTime: '11:00'
   })
   const [lodgingMembers, setLodgingMembers] = useState(null) // null => all
-  const [flightLookupLoading, setFlightLookupLoading] = useState(false)
-  const [flightLookupError, setFlightLookupError] = useState('')
   const [flightMembers, setFlightMembers] = useState(null) // null => all
   const geocodeCache = useRequestCache()
   const reverseGeocodeCache = useRequestCache()
-  const flightLookupCache = useRequestCache()
   const normalizedTripParticipants = useMemo(
     () => normalizeMembersValue(trip?.participants) || [],
     [trip?.participants]
@@ -176,13 +171,6 @@ export default function TripPage() {
   const getCachedReverseGeocode = async (lat, lon) => {
     const key = `${Number(lat).toFixed(5)},${Number(lon).toFixed(5)}`
     return reverseGeocodeCache.getOrSet(key, async () => (await reverseGeocodeLocation(lat, lon)) || null)
-  }
-
-  const getCachedFlightLookup = async (flightNumber, targetDate) => {
-    const key = `${String(flightNumber || '')
-      .trim()
-      .toUpperCase()}::${String(targetDate || '')}`
-    return flightLookupCache.getOrSet(key, async () => lookupFlightByNumber(flightNumber, { targetDate }))
   }
 
   const handleStopHourChange = async (stopId, hour) => {
@@ -382,6 +370,24 @@ export default function TripPage() {
     })
   }
 
+  const handleAddManualFlight = () => {
+    const defaultDate = selectedDate || trip?.startDate || ''
+    setFlightLookupPreview((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID(),
+        selected: true,
+        flightNumber: '',
+        departureAddress: '',
+        arrivalAddress: '',
+        departureDate: defaultDate,
+        arrivalDate: defaultDate,
+        departureTime: '08:00',
+        arrivalTime: '12:00'
+      }
+    ])
+  }
+
   const handleAddFlightStops = async () => {
     if (!trip || flightLookupPreview.length === 0) return
     const selectedFlights = flightLookupPreview.filter((flight) => flight.selected)
@@ -447,35 +453,7 @@ export default function TripPage() {
       )
     }
     setFlightLookupPreview([])
-    setFlightNumbersInput('')
     setShowFlightsModal(false)
-  }
-
-  const handleFlightLookup = async () => {
-    const numbers = flightNumbersInput
-      .split(/[\n, ]+/)
-      .map((item) => item.trim().toUpperCase())
-      .filter(Boolean)
-    if (numbers.length === 0) return
-    setFlightLookupLoading(true)
-    setFlightLookupError('')
-    try {
-      const lookedUp = []
-      for (let index = 0; index < numbers.length; index += 1) {
-        const flightNumber = numbers[index]
-        const flight = await getCachedFlightLookup(flightNumber, selectedDate)
-        lookedUp.push({
-          ...flight,
-          id: `${flight.flightNumber || flightNumber}-${index}`,
-          selected: true
-        })
-      }
-      setFlightLookupPreview(lookedUp)
-    } catch (error) {
-      setFlightLookupError(error.message || 'Unable to lookup flight right now')
-    } finally {
-      setFlightLookupLoading(false)
-    }
   }
 
   const handleDeleteFlight = async (flightEntry) => {
@@ -864,11 +842,7 @@ export default function TripPage() {
           participantNames={trip?.participantNames || {}}
           members={flightMembers}
           onMembersChange={setFlightMembers}
-          flightNumbersInput={flightNumbersInput}
-          onFlightNumbersInputChange={setFlightNumbersInput}
-          flightLookupLoading={flightLookupLoading}
-          flightLookupError={flightLookupError}
-          onLookup={handleFlightLookup}
+          onAddFlight={handleAddManualFlight}
           flightLookupPreview={flightLookupPreview}
           onFlightPreviewChange={handleFlightPreviewChange}
           onRemoveFlightPreview={handleRemoveFlightPreview}

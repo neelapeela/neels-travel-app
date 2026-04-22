@@ -5,7 +5,6 @@
 
 export { getDatesBetween } from './dates'
 export { geocodeLocation, reverseGeocodeLocation } from './geocoding'
-export { lookupFlightByNumber } from './flightLookup'
 
 export { getTripById, subscribeToTripById, getTripsForUser, subscribeToUserTrips } from './reads'
 
