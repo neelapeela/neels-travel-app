@@ -75,8 +75,8 @@ export default function MoneyModal({
                 </p>
               ) : null}
               <p className="money-modal-hint">
-                Amounts below are <strong>for you only</strong>, based on each stop&apos;s selected members:
-                who owes you (or you owe) in the minimal settlement plan.
+                Amounts below are <strong>for you only</strong>, based on who was selected to split each
+                payment: who owes you (or you owe) in the minimal settlement plan.
               </p>
               {paymentOverviewVsYou.kind === 'empty' ? (
                 <p className="money-modal-empty">No participants on this trip yet.</p>
@@ -143,6 +143,7 @@ export default function MoneyModal({
                         <th>User</th>
                         <th>Reason</th>
                         <th>Amount</th>
+                        <th>Split</th>
                         <th>Stop</th>
                       </tr>
                     </thead>
@@ -166,6 +167,7 @@ export default function MoneyModal({
                           <td>{payment.payerDisplayName}</td>
                           <td>{payment.reason || '—'}</td>
                           <td>${Number(payment.amount).toFixed(2)}</td>
+                          <td>{payment.splitMembersDisplay || '—'}</td>
                           <td>{payment.stopTitle}</td>
                         </tr>
                       ))}

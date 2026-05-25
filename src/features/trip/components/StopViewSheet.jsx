@@ -10,11 +10,11 @@ import {
   BsXLg
 } from 'react-icons/bs'
 import { formatStopTime } from '../../../utils/stopTime'
-import { formatFlightTimeZoneAtStop } from '../../../utils/stopTimezone'
 import { useMobileStopModal } from '../../../hooks/useStopSheetHeight'
 import { openDrivingDirectionsFromCurrentLocation } from '../../../utils/mapsDirectionsUrl'
 import { readCoord, stopHasValidMapCoords } from '../../../utils/mapboxRoute'
 import { normalizeMembersForParticipants } from '../utils/stopMembers'
+import MemberMultiSelect from './MemberMultiSelect'
 import StopDirectionsPickerModal from './modals/StopDirectionsPickerModal'
 
 const StopViewSheet = forwardRef(function StopViewSheet(
@@ -87,32 +87,8 @@ const StopViewSheet = forwardRef(function StopViewSheet(
   const canNavigate = stopHasValidMapCoords(selectedStop)
   const navLat = readCoord(selectedStop?.latitude)
   const navLng = readCoord(selectedStop?.longitude)
-  const flightTimeZoneLabel =
-    selectedStop?.stopType === 'flight'
-      ? formatFlightTimeZoneAtStop(selectedStop, stopCalendarDate, 'full')
-      : ''
   const allMemberIds = Array.isArray(participants) ? participants.filter(Boolean) : []
   const visibleMemberIds = normalizeMembersForParticipants(selectedStop?.members, allMemberIds) || allMemberIds
-  const selectedMemberIds = Array.isArray(stopForm?.members) ? stopForm.members : allMemberIds
-  const allMembersSelected =
-    allMemberIds.length > 0 &&
-    selectedMemberIds.length === allMemberIds.length &&
-    allMemberIds.every((id) => selectedMemberIds.includes(id))
-
-  const writeMembers = (nextIds) => {
-    const normalized = Array.from(new Set((nextIds || []).filter(Boolean)))
-    const asAll = normalized.length === 0 || normalized.length === allMemberIds.length
-    onStopFormChange({
-      target: { name: 'members', value: asAll ? null : normalized }
-    })
-  }
-
-  const toggleMember = (id) => {
-    const next = selectedMemberIds.includes(id)
-      ? selectedMemberIds.filter((v) => v !== id)
-      : [...selectedMemberIds, id]
-    writeMembers(next)
-  }
 
   const directionsPortal =
     directionsPickerOpen &&
@@ -229,12 +205,7 @@ const StopViewSheet = forwardRef(function StopViewSheet(
               </div>
               <div className="stop-view-row">
                 <span>Time</span>
-                <strong>
-                  {formatStopTime(selectedStop.stopTime, selectedStop.timestampHour)}
-                  {flightTimeZoneLabel ? (
-                    <span className="stop-view-timezone"> · {flightTimeZoneLabel}</span>
-                  ) : null}
-                </strong>
+                <strong>{formatStopTime(selectedStop.stopTime, selectedStop.timestampHour)}</strong>
               </div>
               <div className="stop-view-row">
                 <span>Notes</span>
@@ -270,41 +241,20 @@ const StopViewSheet = forwardRef(function StopViewSheet(
                 name="stopTime"
                 value={stopForm.stopTime}
                 onChange={onStopFormChange}
-                aria-describedby={selectedStop?.stopType === 'flight' && flightTimeZoneLabel ? 'stop-timezone-hint' : undefined}
               />
-              {selectedStop?.stopType === 'flight' && flightTimeZoneLabel ? (
-                <p className="stop-view-timezone-hint" id="stop-timezone-hint">
-                  Local time zone at this stop&apos;s map pin: {flightTimeZoneLabel}
-                </p>
-              ) : null}
               <label htmlFor="stop-notes-edit">Notes</label>
               <textarea id="stop-notes-edit" name="notes" rows={4} value={stopForm.notes} onChange={onStopFormChange} />
-              <div className="stop-view-edit-members">
-                <span className="stop-view-edit-members__label">Members</span>
-                <div className="stop-view-edit-members__pills">
-                  <button
-                    type="button"
-                    className={`stop-view-edit-members__pill${allMembersSelected ? ' is-active' : ''}`}
-                    onClick={() => writeMembers([])}
-                    disabled={savingStop || savesDisabled}
-                  >
-                    Select all
-                  </button>
-                  {allMemberIds.map((memberId) => (
-                    <button
-                      key={memberId}
-                      type="button"
-                      className={`stop-view-edit-members__pill${
-                        selectedMemberIds.includes(memberId) ? ' is-active' : ''
-                      }`}
-                      onClick={() => toggleMember(memberId)}
-                      disabled={savingStop || savesDisabled}
-                    >
-                      {participantNames?.[memberId] || 'Member'}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <MemberMultiSelect
+                participants={allMemberIds}
+                participantNames={participantNames}
+                value={stopForm?.members ?? []}
+                onChange={(next) =>
+                  onStopFormChange({
+                    target: { name: 'members', value: next }
+                  })
+                }
+                disabled={savingStop || savesDisabled}
+              />
             </div>
           )}
         </div>

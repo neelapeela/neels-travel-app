@@ -1,46 +1,25 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useMemo } from 'react'
 import {
   computeGreedySettlementTransfers,
   netSettlementBetweenUserAndOther
 } from '../utils/paymentSettlement'
-import { getParticipantDisplayNamesByIds } from '../api/user'
 import { normalizeMembersValue } from '../utils/members'
+import {
+  formatPaymentSplitMembersLabel,
+  resolvePaymentSplitMembers
+} from '../utils/paymentSplitMembers'
+import { shortLabelFromRawName } from '../utils/participantLabels'
 
 /** Stored payerName fallbacks that should not beat trip/profile labels. */
 const GENERIC_PAYER_LABELS = new Set(['traveler', 'unknown', 'member', ''])
 
 const EMPTY_PARTICIPANTS = []
 
-const normalizeIdList = (value) => {
-  return normalizeMembersValue(value) || []
-}
-
-const resolveStopSplitMembers = (stopMembers, tripParticipants, payerId) => {
-  const all = normalizeIdList(tripParticipants)
-  const explicit = normalizeIdList(stopMembers)
-
-  // null/empty stop members => all current trip members
-  if (stopMembers == null || explicit.length === 0) {
-    if (all.length > 0) return all
-    return payerId ? [payerId] : []
-  }
-
-  if (all.length === 0) return explicit
-  const allSet = new Set(all)
-  const filtered = explicit.filter((id) => allSet.has(id))
-  if (filtered.length > 0) return filtered
-  // Explicit members no longer overlap current participants: default to all current trip members.
-  return all
-}
-
 /**
- * Flat payment list + stop-member-aware settlement overview vs current user.
- * Labels prefer `trip.participantNames` (every participant can read the trip), then
- * `users/{uid}` when rules allow, then non-generic `payerName` on the payment row.
+ * Flat payment list + per-payment split-member settlement overview vs current user.
+ * Display labels use `shortLabelsById` (first name, disambiguated with last initial).
  */
-export function useTripPaymentAnalytics(trip, userId) {
-  const [profileNamesById, setProfileNamesById] = useState({})
-
+export function useTripPaymentAnalytics(trip, userId, shortLabelsById = {}) {
   const flatPayments = useMemo(
     () => {
       const seenPaymentIds = new Set()
@@ -55,7 +34,7 @@ export function useTripPaymentAnalytics(trip, userId) {
             return [
               {
                 ...payment,
-                stopMembers: stop.members ?? null,
+                splitMembers: payment.splitMembers ?? null,
                 stopId: stop.id,
                 stopTitle: stop.title,
                 dayDate: day.date
@@ -68,47 +47,22 @@ export function useTripPaymentAnalytics(trip, userId) {
     [trip]
   )
 
-  const participantIds = useMemo(
-    () => trip?.participants ?? EMPTY_PARTICIPANTS,
-    [trip?.participants]
-  )
-  const participantIdsKey = useMemo(() => [...participantIds].sort().join(','), [participantIds])
-  const namesOnTrip = useMemo(
-    () =>
-      trip?.participantNames && typeof trip.participantNames === 'object' ? trip.participantNames : {},
-    [trip?.participantNames]
-  )
-
-  useEffect(() => {
-    if (participantIds.length === 0) {
-      setProfileNamesById({})
-      return undefined
-    }
-    let cancelled = false
-    getParticipantDisplayNamesByIds(participantIds).then((map) => {
-      if (!cancelled) setProfileNamesById(map)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [participantIds, participantIdsKey])
-
   const labelForPayerId = useCallback(
     (payerId, payerNameOnPayment) => {
-      const fromTrip = (namesOnTrip[payerId] || '').trim()
-      if (fromTrip) return fromTrip
-      const fromProfile = (profileNamesById[payerId] || '').trim()
-      if (fromProfile) return fromProfile
+      const id = String(payerId || '').trim()
+      if (id && shortLabelsById[id]) return shortLabelsById[id]
       const fromPayment = (payerNameOnPayment || '').trim()
       const paymentKey = fromPayment.toLowerCase()
-      if (fromPayment && !GENERIC_PAYER_LABELS.has(paymentKey)) return fromPayment
+      if (fromPayment && !GENERIC_PAYER_LABELS.has(paymentKey)) {
+        return shortLabelFromRawName(fromPayment) || fromPayment
+      }
       return 'Member'
     },
-    [namesOnTrip, profileNamesById]
+    [shortLabelsById]
   )
 
   const stopSplitBalances = useMemo(() => {
-    const participants = normalizeIdList(trip?.participants)
+    const participants = normalizeMembersValue(trip?.participants) || []
     const balances = Object.fromEntries(participants.map((id) => [id, 0]))
     const payerTotals = {}
     let total = 0
@@ -118,7 +72,7 @@ export function useTripPaymentAnalytics(trip, userId) {
       const amount = Number(payment.amount || 0)
       if (!Number.isFinite(amount) || amount <= 0) continue
       const payerId = String(payment.payerId || '').trim()
-      const splitMembers = resolveStopSplitMembers(payment.stopMembers, participants, payerId)
+      const splitMembers = resolvePaymentSplitMembers(payment.splitMembers, participants, payerId)
       if (splitMembers.length === 0) continue
       const shareEach = amount / splitMembers.length
 
@@ -161,11 +115,10 @@ export function useTripPaymentAnalytics(trip, userId) {
     for (const payment of flatPayments) {
       const id = payment.payerId
       if (!id || map[id]) continue
-      const name = (payment.payerName || '').trim()
-      if (name) map[id] = name
+      map[id] = labelForPayerId(id, payment.payerName)
     }
     return map
-  }, [flatPayments])
+  }, [flatPayments, labelForPayerId])
 
   const paymentOverviewVsYou = useMemo(() => {
     const participants = stopSplitBalances.participants
@@ -194,20 +147,20 @@ export function useTripPaymentAnalytics(trip, userId) {
     })
 
     return { kind: 'ok', rows, yourNetVsShare, transfers }
-  }, [
-    stopSplitBalances,
-    paymentPayerDisplayNames,
-    labelForPayerId,
-    userId
-  ])
+  }, [stopSplitBalances, paymentPayerDisplayNames, labelForPayerId, userId])
 
   const allPayments = useMemo(
     () =>
       flatPayments.map((p) => ({
         ...p,
-        payerDisplayName: labelForPayerId(p.payerId, p.payerName)
+        payerDisplayName: labelForPayerId(p.payerId, p.payerName),
+        splitMembersDisplay: formatPaymentSplitMembersLabel(
+          p.splitMembers,
+          trip?.participants,
+          (id) => labelForPayerId(id, paymentPayerDisplayNames[id])
+        )
       })),
-    [flatPayments, labelForPayerId]
+    [flatPayments, labelForPayerId, trip?.participants, paymentPayerDisplayNames]
   )
 
   return {

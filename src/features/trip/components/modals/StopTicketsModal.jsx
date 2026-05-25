@@ -2,6 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import { addPaymentToStop, updateStopInTrip } from '../../../../api/trip'
 import { useAuth } from '../../../../context/AuthContext'
+import MemberMultiSelect, { membersSelectionForSave } from '../MemberMultiSelect'
+import { buildParticipantLabel, shortLabelFromRawName } from '../../../../utils/participantLabels'
+import { formatPaymentSplitMembersLabel } from '../../../../utils/paymentSplitMembers'
 import { isCloudinaryConfigured, uploadTicketScreenshot } from '../../../../utils/cloudinaryUpload'
 import {
   getTicketLinkLabel,
@@ -15,6 +18,8 @@ export default function StopTicketsModal({
   date,
   stop,
   stopTitle,
+  participants = [],
+  participantNames = {},
   onClose,
   onSelectPaymentDetail,
   initialTab = 'tickets',
@@ -29,6 +34,7 @@ export default function StopTicketsModal({
   const [savingLink, setSavingLink] = useState(false)
   const [paymentReasonDraft, setPaymentReasonDraft] = useState('')
   const [paymentAmountDraft, setPaymentAmountDraft] = useState('')
+  const [paymentSplitMembers, setPaymentSplitMembers] = useState([])
   const [savingPayment, setSavingPayment] = useState(false)
   const [error, setError] = useState('')
 
@@ -166,17 +172,30 @@ export default function StopTicketsModal({
       setError('Missing stop context for payment.')
       return
     }
+    const splitResult = membersSelectionForSave(paymentSplitMembers, participants)
+    if (!splitResult.ok) {
+      setError('Select at least one person to split this payment.')
+      return
+    }
     setError('')
     setSavingPayment(true)
     try {
+      const payerLabel =
+        participantNames?.[user?.uid] ||
+        shortLabelFromRawName(
+          buildParticipantLabel({ displayName: user?.displayName, email: user?.email })
+        ) ||
+        'Member'
       await addPaymentToStop(tripId, date, stop.id, {
         payerId: user?.uid || '',
-        payerName: user?.displayName || user?.email || 'Unknown',
+        payerName: payerLabel,
         reason: paymentReasonDraft.trim(),
-        amount
+        amount,
+        splitMembers: splitResult.value
       })
       setPaymentReasonDraft('')
       setPaymentAmountDraft('')
+      setPaymentSplitMembers([])
     } catch (err) {
       console.error(err)
       setError(err?.message || 'Could not save payment.')
@@ -229,11 +248,16 @@ export default function StopTicketsModal({
             </p>
           ) : (
             <p className="setup-subtitle">
-              Add payments for this stop. For paired flight and lodging stops, payments are mirrored automatically.
+              Add payments for this stop and choose who splits each one. For paired flight and lodging stops,
+              payments are mirrored automatically.
             </p>
           )}
 
-          {error ? <p className="join-error">{error}</p> : null}
+          {error ? (
+            <div className="stop-tickets-modal__alert" role="alert">
+              {error}
+            </div>
+          ) : null}
 
           {savesDisabled ? (
             <p className="setup-subtitle">Connect to the internet to add or remove attachments.</p>
@@ -363,6 +387,16 @@ export default function StopTicketsModal({
           ) : (
             <div className="stop-tickets-modal__section">
               <h4 className="stop-tickets-modal__section-title">Payments</h4>
+              {participants.length > 0 ? (
+                <MemberMultiSelect
+                  participants={participants}
+                  participantNames={participantNames}
+                  value={paymentSplitMembers}
+                  onChange={setPaymentSplitMembers}
+                  disabled={savesDisabled || paymentBusy}
+                  label="Split between"
+                />
+              ) : null}
               <div className="stop-tickets-modal__link-row">
                 <input
                   type="text"
@@ -388,19 +422,31 @@ export default function StopTicketsModal({
               </div>
               {payments.length > 0 ? (
                 <ul className="stop-payment-pills" aria-label="Payments for this stop">
-                  {payments.map((payment) => (
-                    <li key={payment.id}>
-                      <button
-                        type="button"
-                        className="stop-payment-pill"
-                        onClick={() => onSelectPaymentDetail?.(payment)}
-                        disabled={savesDisabled}
-                        title={savesDisabled ? 'Payment details when online' : undefined}
-                      >
-                        {payment.payerName} – ${Number(payment.amount || 0).toFixed(2)}
-                      </button>
-                    </li>
-                  ))}
+                  {payments.map((payment) => {
+                    const splitLabel = formatPaymentSplitMembersLabel(
+                      payment.splitMembers,
+                      participants,
+                      (id) => (participantNames?.[id] || '').trim() || 'Member'
+                    )
+                    return (
+                      <li key={payment.id}>
+                        <button
+                          type="button"
+                          className="stop-payment-pill"
+                          onClick={() => onSelectPaymentDetail?.(payment)}
+                          disabled={savesDisabled}
+                          title={savesDisabled ? 'Payment details when online' : undefined}
+                        >
+                          {participantNames?.[payment.payerId] ||
+                            shortLabelFromRawName(payment.payerName) ||
+                            payment.payerName ||
+                            'Member'}{' '}
+                          – ${Number(payment.amount || 0).toFixed(2)}
+                          <span className="stop-payment-pill__split"> · {splitLabel}</span>
+                        </button>
+                      </li>
+                    )
+                  })}
                 </ul>
               ) : (
                 <p className="setup-subtitle">No payments yet.</p>

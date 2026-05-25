@@ -187,6 +187,7 @@ export const addPaymentToStop = async (tripId, date, stopId, payment) => {
     payerName: payment.payerName,
     reason: payment.reason,
     amount,
+    splitMembers: payment.splitMembers ?? null,
     createdAt: new Date().toISOString()
   }
 
@@ -201,6 +202,69 @@ export const addPaymentToStop = async (tripId, date, stopId, payment) => {
     })
     return { ...day, stops: nextStops }
   })
+
+  await updateDoc(tripRef, {
+    itinerary: nextItinerary,
+    updatedAt: new Date().toISOString()
+  })
+}
+
+export const updatePaymentOnStop = async (tripId, date, stopId, paymentId, payment) => {
+  if (!tripId || !date || !stopId || !paymentId) throw new Error('Missing required parameters')
+  const amount = Number(payment?.amount)
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error('Payment amount must be greater than zero')
+  }
+  const tripRef = doc(db, 'trips', tripId)
+  const tripSnapshot = await getDoc(tripRef)
+  if (!tripSnapshot.exists()) throw new Error('Trip not found')
+
+  const tripData = tripSnapshot.data()
+  const itinerary = [...(tripData.itinerary || [])]
+  const dayIndex = itinerary.findIndex((day) => day.date === date)
+  if (dayIndex < 0) throw new Error('Day not found')
+  const sourceStop = (itinerary[dayIndex].stops || []).find((stop) => stop.id === stopId)
+  if (!sourceStop) throw new Error('Stop not found')
+  const existingPayment = (sourceStop.payments || []).find((p) => p.id === paymentId)
+  if (!existingPayment) throw new Error('Payment not found')
+
+  const linkedRefs = findLinkedStopRefs(itinerary, sourceStop)
+  const refsByDay = new Map()
+  const addRef = (d, s) => {
+    if (!refsByDay.has(d)) refsByDay.set(d, new Set())
+    refsByDay.get(d).add(s)
+  }
+  addRef(dayIndex, (itinerary[dayIndex].stops || []).findIndex((stop) => stop.id === stopId))
+  for (const ref of linkedRefs) addRef(ref.dayIndex, ref.stopIndex)
+
+  const nextPayment = {
+    id: paymentId,
+    payerId: payment.payerId ?? existingPayment.payerId,
+    payerName: payment.payerName ?? existingPayment.payerName,
+    reason: payment.reason ?? '',
+    amount,
+    splitMembers: payment.splitMembers ?? null,
+    createdAt: existingPayment.createdAt || new Date().toISOString()
+  }
+
+  let found = false
+  const nextItinerary = itinerary.map((day, dIdx) => {
+    const targetStops = refsByDay.get(dIdx)
+    if (!targetStops || targetStops.size === 0) return day
+    const nextStops = (day.stops || []).map((stop, sIdx) => {
+      if (!targetStops.has(sIdx)) return stop
+      const payments = stop.payments || []
+      const idx = payments.findIndex((p) => p.id === paymentId)
+      if (idx < 0) return stop
+      found = true
+      const nextPayments = [...payments]
+      nextPayments[idx] = nextPayment
+      return { ...stop, payments: nextPayments }
+    })
+    return { ...day, stops: nextStops }
+  })
+
+  if (!found) throw new Error('Payment not found')
 
   await updateDoc(tripRef, {
     itinerary: nextItinerary,

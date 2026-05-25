@@ -65,6 +65,7 @@ export const normalizeStop = (stop, index = 0, date = 'day') => ({
     payerName: payment.payerName || 'Unknown',
     reason: payment.reason || '',
     amount: Number(payment.amount || 0),
+    splitMembers: normalizeMembersValue(payment.splitMembers),
     createdAt: payment.createdAt || null
   }))
 })

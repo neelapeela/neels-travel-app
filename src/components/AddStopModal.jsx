@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { BsX } from 'react-icons/bs'
 import { useAuth } from '../context/AuthContext'
 import { geocodeLocation, reverseGeocodeLocation, addStopToTrip } from '../api/trip'
-import MemberMultiSelect from '../features/trip/components/MemberMultiSelect'
+import MemberMultiSelect, { membersSelectionForSave } from '../features/trip/components/MemberMultiSelect'
 import '../App.css'
 
 export default function AddStopModal({
@@ -16,7 +16,7 @@ export default function AddStopModal({
   const { user } = useAuth()
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [members, setMembers] = useState(null) // null => all
+  const [members, setMembers] = useState([])
   const [formData, setFormData] = useState({
     title: '',
     notes: '',
@@ -43,6 +43,13 @@ export default function AddStopModal({
         return
       }
 
+      const membersResult = membersSelectionForSave(members, participants)
+      if (!membersResult.ok) {
+        setError('Select at least one member for this stop.')
+        setLoading(false)
+        return
+      }
+
       const coords = await geocodeLocation(formData.location)
       if (!coords) {
         setError('Could not find that location. Try a more specific place name.')
@@ -61,7 +68,7 @@ export default function AddStopModal({
         longitude: coords.lon,
         location: canonicalAddress,
         createdBy: user?.uid || null,
-        members
+        members: membersResult.value
       })
 
       if (onClose) {
@@ -152,13 +159,16 @@ export default function AddStopModal({
             />
           </div>
 
-          <MemberMultiSelect
-            participants={participants}
-            participantNames={participantNames}
-            value={members}
-            onChange={setMembers}
-            disabled={loading}
-          />
+          <div className="form-group form-group--members">
+            <MemberMultiSelect
+              participants={participants}
+              participantNames={participantNames}
+              value={members}
+              onChange={setMembers}
+              disabled={loading}
+              label="Members"
+            />
+          </div>
 
           <div className="modal-actions">
             <button type="button" className="cancel-button" onClick={handleClose}>

@@ -1,59 +1,14 @@
-import { MapContainer, TileLayer, Marker, Popup, Polyline, FeatureGroup, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Polyline, FeatureGroup } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
 import { useMemo } from 'react'
-import { formatStopTime, getSortMinutes } from '../../../utils/stopTime'
-import { formatFlightTimeZoneAtStop } from '../../../utils/stopTimezone'
-import { readCoord } from '../../../utils/mapboxRoute'
+import { getSortMinutes } from '../../../utils/stopTime'
 import { useDebouncedDrivingRoute } from '../hooks/useDebouncedDrivingRoute'
 import { MAP_TILE_URL } from '../constants'
 import { FitStopsToView, FlyToSelectedStop, ResizeHandler } from './map/leafletMapLayers'
-import {
-  createLodgingHomeIcon,
-  createSpecialIcon,
-  createStopIcon
-} from './map/markerIcons'
+import StopMarkersLayer from './map/StopMarkersLayer'
 import '../trip.css'
 import { colorForMembersKey, membersKey } from '../utils/stopMembers'
-
-/**
- * Popup content is portaled outside React-Leaflet context, so the map is passed from `MapInner`
- * (which calls `useMap()` under `MapContainer`).
- */
-function StopPopupBody({ stop, stopCalendarDate, onSelectStop, leafletMap }) {
-  const title = stop.title || 'Stop'
-  const tz =
-    stop.stopType === 'flight' ? formatFlightTimeZoneAtStop(stop, stopCalendarDate, 'full') : ''
-  const timeLine =
-    formatStopTime(stop.stopTime, stop.timestampHour) + (tz ? ` · ${tz}` : '')
-  const locationLine = stop.location || 'Address not provided'
-
-  if (!onSelectStop) {
-    return (
-      <>
-        <div><strong>{title}</strong></div>
-        <div>{locationLine}</div>
-        <div>{timeLine}</div>
-      </>
-    )
-  }
-
-  return (
-    <button
-      type="button"
-      className="map-view__stop-popup-btn"
-      aria-label={`Open details for ${title}`}
-      onClick={() => {
-        onSelectStop(stop.id)
-        leafletMap?.closePopup()
-      }}
-    >
-      <span className="map-view__stop-popup-btn__title"><strong>{title}</strong></span>
-      <span className="map-view__stop-popup-btn__meta">{locationLine}</span>
-      <span className="map-view__stop-popup-btn__meta">{timeLine}</span>
-    </button>
-  )
-}
 
 function RouteLayer({ stops, color, groupKey }) {
   const { regularRouteSegments, dottedFlightSegmentPositions, polylineKey } = useDebouncedDrivingRoute(stops)
@@ -108,51 +63,18 @@ function MapInner({
   participants = [],
   onSelectStop
 }) {
-  const leafletMap = useMap()
-  const markerViewModels = useMemo(() => {
-    const iconCache = new Map()
-    let regularOrder = 0
-    return sortedStops.map((stop, index) => {
-      const memberKey = membersKey(stop?.members, participants)
-      const color = colorForMembersKey(memberKey)
-      let iconKey = ''
-      if (stop.stopType === 'flight') {
-        iconKey = `flight:${color}`
-        if (!iconCache.has(iconKey)) iconCache.set(iconKey, createSpecialIcon('✈', color))
-      } else if (stop.stopType === 'lodging') {
-        iconKey = `lodging:${color}`
-        if (!iconCache.has(iconKey)) iconCache.set(iconKey, createLodgingHomeIcon(color))
-      } else {
-        regularOrder += 1
-        iconKey = `regular:${regularOrder}:${color}`
-        if (!iconCache.has(iconKey)) iconCache.set(iconKey, createStopIcon(regularOrder, color))
-      }
-      return { stop, index, icon: iconCache.get(iconKey) }
-    })
-  }, [sortedStops, participants])
-
   return (
     <>
       <TileLayer attribution="" url={MAP_TILE_URL} />
       {routeGroups.map((group) => (
         <RouteLayer key={group.key} stops={group.stops} color={group.color} groupKey={group.key} />
       ))}
-      {markerViewModels.map(({ stop, icon }) => (
-        <Marker
-          key={stop.id}
-          position={[readCoord(stop.latitude), readCoord(stop.longitude)]}
-          icon={icon}
-        >
-          <Popup>
-            <StopPopupBody
-              stop={stop}
-              stopCalendarDate={stopCalendarDate}
-              onSelectStop={onSelectStop}
-              leafletMap={leafletMap}
-            />
-          </Popup>
-        </Marker>
-      ))}
+      <StopMarkersLayer
+        sortedStops={sortedStops}
+        participants={participants}
+        stopCalendarDate={stopCalendarDate}
+        onSelectStop={onSelectStop}
+      />
       <FitStopsToView coordinates={coordinates} stops={sortedStops} fitViewKey={fitViewKey} />
       <FlyToSelectedStop focusStop={focusStop} focusLeftPaddingPx={focusLeftPaddingPx} />
       <ResizeHandler shouldResizeMap={shouldResizeMap} layoutResizeKey={layoutResizeKey} />

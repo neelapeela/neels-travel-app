@@ -10,6 +10,7 @@ import {
   reverseGeocodeLocation,
   deleteStopFromTrip,
   deletePaymentFromStop,
+  updatePaymentOnStop,
   addSpecialStopToTrip,
   deleteFlightStopsAcrossTrip,
   deleteLodgingStopsAcrossTrip,
@@ -21,6 +22,7 @@ import {
   updateStopInTrip
 } from '../../api/trip'
 import { buildParticipantLabel } from '../../utils/participantLabels'
+import { useShortParticipantLabels } from '../../hooks/useShortParticipantLabels'
 import { useTripDocument } from '../../hooks/useTripDocument'
 import { useDestinationCoordinates } from '../../hooks/useDestinationCoordinates'
 import { useStopSheetHeight } from '../../hooks/useStopSheetHeight'
@@ -33,6 +35,11 @@ import { normalizeTimeInput } from '../../utils/stopTime'
 import { findTimeZoneIdAtCoordinate } from '../../utils/stopTimezone'
 import { membersValueEqual, normalizeMembersValue } from '../../utils/members'
 import { membersKey, colorForMembersKey, normalizeMembersForParticipants } from './utils/stopMembers'
+import {
+  membersSelectionForSave,
+  membersSelectionFromStored,
+  filterMembersSelection
+} from './components/MemberMultiSelect'
 import { isDateWithinRange, formatDateHeading } from '../../utils/tripDates'
 import { hasSeenTripTutorial, markTripTutorialSeen } from '../../utils/tripTutorialStorage'
 import { SHARE_FEEDBACK_CLEAR_MS } from './constants'
@@ -87,7 +94,7 @@ export default function TripPage() {
     location: '',
     stopTime: '09:00',
     notes: '',
-    members: null
+    members: []
   })
   const [savingStop, setSavingStop] = useState(false)
   const [dayTitleDraft, setDayTitleDraft] = useState('')
@@ -107,8 +114,8 @@ export default function TripPage() {
     checkOutDate: '',
     checkOutTime: '11:00'
   })
-  const [lodgingMembers, setLodgingMembers] = useState(null) // null => all
-  const [flightMembers, setFlightMembers] = useState(null) // null => all
+  const [lodgingMembers, setLodgingMembers] = useState([])
+  const [flightMembers, setFlightMembers] = useState([])
   const geocodeCache = useRequestCache()
   const reverseGeocodeCache = useRequestCache()
   const normalizedTripParticipants = useMemo(
@@ -146,7 +153,12 @@ export default function TripPage() {
     splitDragging: timelineSplitDragging
   } = useTripTimelineResize(showTimePanel)
   const { addedFlights, addedLodgings } = useTripSpecialStopGroups(trip?.itinerary)
-  const { allPayments, paymentTotals, paymentOverviewVsYou } = useTripPaymentAnalytics(trip, user?.uid)
+  const shortParticipantNames = useShortParticipantLabels(trip)
+  const { allPayments, paymentTotals, paymentOverviewVsYou } = useTripPaymentAnalytics(
+    trip,
+    user?.uid,
+    shortParticipantNames
+  )
 
   const handleCopyShareLink = async () => {
     const shareLink = `${window.location.origin}/dashboard?tripId=${tripId}`
@@ -202,26 +214,26 @@ export default function TripPage() {
       location: selectedStop.location || '',
       stopTime: selectedStop.stopTime || `${String(selectedStop.timestampHour ?? 9).padStart(2, '0')}:00`,
       notes: selectedStop.notes || '',
-      members: sanitizeMembersForTrip(selectedStop.members)
+      members: membersSelectionFromStored(selectedStop.members, normalizedTripParticipants)
     })
     setIsEditingStop(false)
-  }, [selectedStop, sanitizeMembersForTrip])
+  }, [selectedStop, normalizedTripParticipants])
 
   useEffect(() => {
     setFlightMembers((prev) => {
-      const next = sanitizeMembersForTrip(prev)
+      const next = filterMembersSelection(prev, normalizedTripParticipants)
       return membersValueEqual(prev, next) ? prev : next
     })
     setLodgingMembers((prev) => {
-      const next = sanitizeMembersForTrip(prev)
+      const next = filterMembersSelection(prev, normalizedTripParticipants)
       return membersValueEqual(prev, next) ? prev : next
     })
     setStopForm((prev) => {
-      const nextMembers = sanitizeMembersForTrip(prev.members)
+      const nextMembers = filterMembersSelection(prev.members, normalizedTripParticipants)
       if (membersValueEqual(prev.members, nextMembers)) return prev
       return { ...prev, members: nextMembers }
     })
-  }, [sanitizeMembersForTrip])
+  }, [normalizedTripParticipants])
 
   useEffect(() => {
     if (!pendingStopEditId || !selectedStop?.id) return
@@ -348,17 +360,9 @@ export default function TripPage() {
     const metadata = { ...(base.metadata || {}) }
     const tzId = findTimeZoneIdAtCoordinate(coords.lat, coords.lon)
     if (tzId) metadata.stopTimezone = tzId
-    const baseNotes = (base.notes || '').trim()
-    const tzLabel = tzId ? tzId.replace(/_/g, ' ') : ''
-    const notes =
-      base.stopType === 'flight' && tzLabel
-        ? baseNotes.includes(tzLabel)
-          ? baseNotes
-          : `${baseNotes} (${tzLabel})`.trim()
-        : baseNotes
     await addSpecialStopToTrip(tripId, dateOverride || selectedDate, {
       title: base.title,
-      notes,
+      notes: (base.notes || '').trim(),
       location: canonical,
       stopTime: base.stopTime,
       latitude: coords.lat,
@@ -392,6 +396,11 @@ export default function TripPage() {
     if (!trip || flightLookupPreview.length === 0) return
     const selectedFlights = flightLookupPreview.filter((flight) => flight.selected)
     if (selectedFlights.length === 0) return
+    const membersResult = membersSelectionForSave(flightMembers, normalizedTripParticipants)
+    if (!membersResult.ok) {
+      window.alert('Select who these flights are for.')
+      return
+    }
     const skipped = []
     const travelerId = user?.uid || null
     const participantIds = travelerId ? [travelerId] : []
@@ -409,7 +418,7 @@ export default function TripPage() {
             location: flight.departureAddress,
             stopTime: flight.departureTime || '08:00',
             stopType: 'flight',
-            members: flightMembers,
+            members: membersResult.value,
             metadata: {
               flightNumber,
               flightLeg: 'departure',
@@ -432,7 +441,7 @@ export default function TripPage() {
             location: flight.arrivalAddress,
             stopTime: flight.arrivalTime || '12:00',
             stopType: 'flight',
-            members: flightMembers,
+            members: membersResult.value,
             metadata: {
               flightNumber,
               flightLeg: 'arrival',
@@ -453,6 +462,7 @@ export default function TripPage() {
       )
     }
     setFlightLookupPreview([])
+    setFlightMembers([])
     setShowFlightsModal(false)
   }
 
@@ -544,6 +554,11 @@ export default function TripPage() {
       window.alert('Enter an address so we can place the stop on the map.')
       return
     }
+    const membersResult = membersSelectionForSave(lodgingMembers, normalizedTripParticipants)
+    if (!membersResult.ok) {
+      window.alert('Select who this lodging is for.')
+      return
+    }
     const lodgingId = crypto.randomUUID()
     const checkInTime = normalizeTimeInput(lodgingForm.checkInTime)
     const checkOutTime = normalizeTimeInput(lodgingForm.checkOutTime)
@@ -558,7 +573,7 @@ export default function TripPage() {
           notes: 'Lodging check-in',
           location: addr,
           stopTime: checkInTime,
-          members: lodgingMembers,
+          members: membersResult.value,
           stopType: 'lodging',
           metadata: { lodgingId, lodgingLabel: label }
         },
@@ -575,7 +590,7 @@ export default function TripPage() {
           notes: 'Lodging check-out',
           location: addr,
           stopTime: checkOutTime,
-          members: lodgingMembers,
+          members: membersResult.value,
           stopType: 'lodging',
           metadata: { lodgingId, lodgingLabel: label }
         },
@@ -590,6 +605,7 @@ export default function TripPage() {
     }
     if (inRange || outRange) {
       setLodgingForm(getDefaultLodgingForm())
+      setLodgingMembers([])
     }
   }
 
@@ -600,6 +616,11 @@ export default function TripPage() {
 
   const handleSaveStop = async () => {
     if (!selectedDate || !selectedStopId || !selectedStop) return
+    const membersResult = membersSelectionForSave(stopForm.members, normalizedTripParticipants)
+    if (!membersResult.ok) {
+      window.alert('Select at least one member for this stop.')
+      return
+    }
     setSavingStop(true)
     try {
       const patch = {
@@ -607,7 +628,7 @@ export default function TripPage() {
         location: stopForm.location.trim(),
         stopTime: stopForm.stopTime,
         notes: stopForm.notes.trim(),
-        members: sanitizeMembersForTrip(stopForm.members)
+        members: membersResult.value
       }
 
       const locationChanged = patch.location !== (selectedStop.location || '')
@@ -652,14 +673,35 @@ export default function TripPage() {
   }
 
   const handleDeletePayment = async (payment) => {
-    if (!tripId || !selectedDate || !selectedStopId || !payment?.id) return
+    const date = payment?.dayDate || selectedDate
+    const stopId = payment?.stopId || selectedStopId
+    if (!tripId || !date || !stopId || !payment?.id) return
     try {
-      await deletePaymentFromStop(tripId, selectedDate, selectedStopId, payment.id)
+      await deletePaymentFromStop(tripId, date, stopId, payment.id)
       setPaymentDetailModal(null)
     } catch (error) {
       console.error('Failed to delete payment:', error)
       window.alert(error?.message || 'Could not delete payment.')
     }
+  }
+
+  const handleSavePayment = async (payment, updates) => {
+    const date = payment?.dayDate || selectedDate
+    const stopId = payment?.stopId || selectedStopId
+    if (!tripId || !date || !stopId || !payment?.id) {
+      throw new Error('Missing trip or stop context for payment.')
+    }
+    await updatePaymentOnStop(tripId, date, stopId, payment.id, updates)
+    setPaymentDetailModal((prev) =>
+      prev?.id === payment.id
+        ? {
+            ...prev,
+            ...updates,
+            amount: Number(updates.amount),
+            payerDisplayName: shortParticipantNames[updates.payerId] || prev.payerDisplayName
+          }
+        : prev
+    )
   }
 
   const handleOpenPaymentFromLog = (payment) => {
@@ -684,7 +726,7 @@ export default function TripPage() {
         showAddStopModal={showAddStopModal}
         setShowAddStopModal={setShowAddStopModal}
         participants={trip?.participants || []}
-        participantNames={trip?.participantNames || {}}
+        participantNames={shortParticipantNames}
         dayTitleDraft={dayTitleDraft}
         onDayTitleDraftChange={setDayTitleDraft}
         onSaveDayTitleBlur={handleSaveDayTitle}
@@ -715,7 +757,7 @@ export default function TripPage() {
               onSaveTripSettings={handleSaveTripSettings}
               onClose={() => setShowSettingsModal(false)}
               participants={trip?.participants}
-              participantNames={trip?.participantNames || {}}
+              participantNames={shortParticipantNames}
               currentUserId={user?.uid}
               creatorId={trip?.creatorId}
               canManageSharing={canManageSharing}
@@ -757,7 +799,7 @@ export default function TripPage() {
               <StopViewSheet
                 ref={stopSheetRef}
                 participants={trip?.participants || []}
-                participantNames={trip?.participantNames || {}}
+                participantNames={shortParticipantNames}
                 stopCalendarDate={selectedDate || ''}
                 selectedStop={selectedStop}
                 isEditingStop={isEditingStop}
@@ -839,7 +881,7 @@ export default function TripPage() {
         <FlightsModal
           onClose={() => setShowFlightsModal(false)}
           participants={trip?.participants || []}
-          participantNames={trip?.participantNames || {}}
+          participantNames={shortParticipantNames}
           members={flightMembers}
           onMembersChange={setFlightMembers}
           onAddFlight={handleAddManualFlight}
@@ -861,7 +903,7 @@ export default function TripPage() {
         <LodgingModal
           onClose={() => setShowLodgingModal(false)}
           participants={trip?.participants || []}
-          participantNames={trip?.participantNames || {}}
+          participantNames={shortParticipantNames}
           members={lodgingMembers}
           onMembersChange={setLodgingMembers}
           lodgingForm={lodgingForm}
@@ -895,6 +937,8 @@ export default function TripPage() {
           date={selectedDate}
           stop={selectedStop}
           stopTitle={selectedStop.title}
+          participants={trip?.participants || []}
+          participantNames={shortParticipantNames}
           onSelectPaymentDetail={setPaymentDetailModal}
           initialTab={ticketsModalInitialTab}
           savesDisabled={savesDisabled}
@@ -907,8 +951,12 @@ export default function TripPage() {
 
       <PaymentDetailModal
         payment={paymentDetailModal}
+        participants={trip?.participants || []}
+        participantNames={shortParticipantNames}
+        savesDisabled={savesDisabled}
         onClose={() => setPaymentDetailModal(null)}
         onDelete={handleDeletePayment}
+        onSave={handleSavePayment}
       />
 
       <TripOnboardingCarousel

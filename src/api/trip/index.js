@@ -23,6 +23,7 @@ export {
   upsertParticipantNameOnTrip,
   removeParticipantFromTrip,
   addPaymentToStop,
+  updatePaymentOnStop,
   deleteStopFromTrip,
   deletePaymentFromStop,
   addSpecialStopToTrip,

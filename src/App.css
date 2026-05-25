@@ -335,6 +335,23 @@ form input:focus,
   resize: vertical;
 }
 
+.modal-form .form-group--members .member-multiselect {
+  margin: 0;
+}
+
+.modal-form .form-group--members .member-multiselect__label {
+  display: block;
+  margin: 0 0 0.5rem;
+  padding: 0;
+  font-size: inherit;
+  font-weight: 400;
+  color: var(--color-ink-muted);
+}
+
+.modal-form .form-group--members .member-multiselect__pills {
+  padding: 0;
+}
+
 .form-row {
   display: flex;
   gap: 1rem;
