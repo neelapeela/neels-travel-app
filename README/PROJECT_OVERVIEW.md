@@ -1,202 +1,277 @@
-# Neel's Travel Book — Project Overview
+# How this app works
 
-## What this app does
+Neel's Travel Book is a **collaborative trip planner**: signed-in people create a trip, invite others, and edit the same itinerary on a map and a day timeline. There is no custom backend. The browser talks to **Firebase** (Google sign-in + Firestore) and a few public APIs (geocoding, driving routes, optional flight lookup, photo upload).
 
-**Neel's Travel Book** is a collaborative trip planner with a warm, retro-inspired UI built from a **six-color mood board** (terra cotta, sand, olive, ochre, clay, sea)—**sea (teal) dark chrome** and **olive** as the secondary accent on dark surfaces, plus a **sand/clay** login and dashboard “room”; **DM Sans** for UI, **Figtree** for hero type, **Pixelify Sans** for pixel-era accents; login pairs copy with a **pixel-art map** (`src/illustrations/landing-hero-map.png`). A signed-in user can:
-- create a trip with destination and date range
-- join a trip by invite code or invite link
-- view each day of a trip on a map and timeline
-- add and edit stops (time + notes) with updates synced in real time
+For URL/router basics, see [Routing.MD](./Routing.MD). This page is the rest of the system.
 
-## Core user flow
+## Architecture
 
-1. User lands on `/login` and signs in with Google (**popup** by default; **full-page redirect** if the browser blocks popups or does not support the popup flow—see `getRedirectResult` in `AuthContext` and `signInWithRedirect` fallback in `Login`). Storage-partitioned environments (some in-app browsers, strict privacy) can trigger Firebase’s “missing initial state” error; the app treats benign redirect recovery errors quietly and shows a clearer message when sign-in still fails.
-2. User is redirected to `/dashboard`.
-3. Dashboard shows all trips linked to the user.
-4. User can:
-   - create a trip from the create modal
-   - join an existing trip by invite code
-   - open an invite link (`/dashboard?tripId=<id>`) which auto-joins after sign-in: unauthenticated visitors are sent to `/login` with **router state** preserving the full URL (`pathname` + `search`), and after Google sign-in **Login** sends them back to that URL (not a bare `/dashboard`), so `tripId` is not lost on production or local.
-5. Clicking a trip opens `/trip/:tripId`.
-6. Trip view shows:
-   - top toolbar (add stop on left, centered date + editable day title, share + time controls on right)
-   - settings popover from toolbar for trip notes and participant management (anchored under the **gear** button like share); creator can remove others; **creator** can **Delete trip** (removes `trips/{id}` + matching `trip_invites/{code}` + `arrayRemove`s that trip id from **every** participant’s `users.trips` in one transaction)
-   - map with stop markers
-   - numbered marker circles (chronological order)
-   - route line connecting stops in chronological order
-   - **Right column** (toggle with clock): full-height panel with date navigation (fixed) and a **scrollable** timeline (`Day Timeline` + hourly rows). Choosing a stop opens **stop details**: on **desktop**, a **floating card** (narrower than the map width) appears near the lower-left of the map with a soft “pop in”; on **≤768px width**, the same content appears as a **centered modal** (dimmed backdrop, tap outside or Escape to dismiss, body scroll locked). The mobile shell is rendered with **`createPortal(..., document.body)`** so **`overflow: hidden`** on `.trip-map-column` / `.trip-map-stack` does not clip the overlay; desktop-only shell styles use **`@media (min-width: 769px)`** so they never override the mobile `position: fixed` + backdrop rules. **`useStopSheetHeight`** measures sheet height for the **island** and **horizontal overlap** (`mapLeftInsetPx`) for desktop marker centering; on the mobile modal breakpoint it returns **0** for map overlap. Selected-stop fly-to shifts focus **rightward** to keep markers clear of the floating card. `MapView` also fits bounds to all valid stops by default so new/loaded days open with all stops visible.
-   - **≤768px width** with the timeline open: map and timeline **stack vertically** (`trip-page-content--with-timeline`); the map uses a **bounded height** (`clamp` / `vh`) so the timeline keeps usable space, unless the user has set a **custom band height** via the **split handle** (terra grip between map and timeline; persisted in **`localStorage`** as `tripMapBandHeightPx`, see **`useTripTimelineResize`**). While dragging, the **actual in-flow grip stays in place** at the map/timeline boundary; map height is still computed from **`clientY − mapTop − halfHandle`** each move for smooth tracking. The split handle uses a **12px** hit band with a smaller visual pill centered inside (compact strip). **Map-only** (clock closed) the map column gets a **flexible min-height** so the band doesn’t feel cramped. Page **padding and gaps** tighten; **toolbar** uses smaller vertical padding. Each hour row’s **stop pills** sit in a **horizontally scrollable** strip (`overflow-x: auto`, `flex-wrap: nowrap`) when there are many stops.
-   - drag-and-drop stop reordering by hour, and stop detail UI (bottom sheet or mobile modal) with edit mode
-   - payments per stop: **Add payment** opens a modal (amount > 0, reason); saved payments appear as pills `Payer – $amount`; a pill opens a detail modal (payer, amount, reason, optional recorded time)
-   - **Action island** (flights, lodging, **Money**) lives **inside** `.trip-map-stack` with **`position: absolute`** so it stays **within the map frame** on narrow viewports (not fixed to the whole window). **Money** has tabs **Overview** (signed-in user: their balance vs equal share of total spend, plus per–other-traveler settlement with **you** from a greedy equal-split settle-up plan) and **Logs** (all payments in a table with day, user, reason, amount, stop); when the stop sheet is open, the island’s `bottom` is increased by the measured sheet height (plus safe-area inset on notched devices) so it sits above the sheet (CSS transition on `bottom`)
-   - flights modal supports batch lookup, editable preview, selection of final flights, and managing/deleting added flights
-  - lodging modal: one stay at a time (name, address, check-in/out date and time); **Add lodging** creates stops and clears the form so another stay can be entered; trip-wide list and delete behave like flights; map uses a home-shaped marker for lodging stops
-  - island-driven modals (Money / Flights / Lodging) share refreshed “trip” chrome aligned with the mood board palette (sand/clay/terra/sea), reduced green dominance, and explicit **dark-on-light text tokens** (`--color-ink-on-sand`, `--color-ink-on-sand-muted`) to prevent light-on-light contrast issues
-   - first-run get-started modal to initialize trip notes/title; can be closed with **×** or backdrop without saving (stays dismissed until you leave and re-open the same trip route)
-   - fullscreen-style modals use a **×** in the header and click-outside on the dimmed backdrop to close; **Trip settings** (gear) uses the same **×** in its popover header
-7. Trip creator can copy invite code/link and share with others.
+There is no app server. The Vite/React client talks to Firebase and a few HTTP APIs. `src/App.jsx` wraps the tree in the router, auth, and an offline flag. `/dashboard` and `/trip/:tripId` sit behind `ProtectedRoute` (must be signed in). `src/pages/Trip.jsx` only re-exports `src/features/trip/TripPage.jsx`.
 
-## Data model (Firestore)
+```mermaid
+flowchart TB
+  subgraph browser["Browser"]
+    App["App.jsx\nrouter + Auth + offline"]
+    Pages["Login / Dashboard / TripPage"]
+    Feature["features/trip\nmap, timeline, money, modals"]
+    Hooks["hooks/\nlive trip, day, settlement"]
+    API["api/trip + api/user\nsubscribe and write"]
+    App --> Pages --> Feature
+    Feature --> Hooks
+    Feature --> API
+    Hooks --> API
+  end
 
-### `users/{uid}`
-- `displayName`
-- `email`
-- `phoneNumber`
-- `photoURL`
-- `createdAt`
-- `trips`: `string[]` of trip IDs
+  subgraph firebase["Firebase"]
+    Auth["Auth\nGoogle sign-in"]
+    FS[("Firestore\nusers / trips / trip_invites")]
+  end
 
-### `trips/{tripId}`
-- `id`
-- `name`
-- `creatorId`
-- `participants`: `string[]` user IDs
-- `participantNames`: optional `{ [uid]: string }` — display labels synced on create/join and when a user opens the trip (so Money and settings show names without reading other users’ `users/{uid}` docs, which rules often forbid)
-- `destination`
-- `startDate` (`YYYY-MM-DD`)
-- `endDate` (`YYYY-MM-DD`)
-- `description`
-- `inviteCode` (short uppercase code)
-- `itinerary`: day array
-- `createdAt`
-- `updatedAt`
+  subgraph extras["Other APIs from the browser"]
+    Mapbox["Mapbox\ntiles + driving routes"]
+    Nominatim["Nominatim\naddress geocoding"]
+    Optional["Optional\nAviationstack, Cloudinary"]
+  end
 
-### `trip_invites/{inviteCode}`
-- `code`
-- `tripId`
-- `createdBy`
-- `createdAt`
+  API --> Auth
+  API --> FS
+  Feature --> Mapbox
+  API --> Nominatim
+  Feature --> Optional
+```
 
-### itinerary day shape
-- `date` (`YYYY-MM-DD`)
-- `stops`: stop array
+A typical edit: UI in `features/trip` → function in `src/api/trip` → Firestore trip document → `useTripDocument` snapshot → map, timeline, and money all re-render from the same `trip` object.
 
-### stop shape
-- `id`
-- `title`
-- `notes`
-- `location` (canonical reverse-geocoded address)
-- `stopTime` (`HH:mm`) when set
-- `timestampHour` (`0-23`)
-- `latitude`
-- `longitude`
-- `createdBy`
-- `stopType`: `'regular'` | `'flight'` | `'lodging'`
-- `metadata`: e.g. `{ flightNumber }` for flights; `{ lodgingId, lodgingLabel }` for lodging (pairs check-in/check-out for one stay)
-- `payments`: optional array of `{ id, payerId, payerName, reason, amount, createdAt? }` — new payments get `createdAt` (ISO); `addPaymentToStop` rejects non‑finite or `<= 0` amounts
+On sign-in, `AuthContext` waits for Firebase Auth, then `syncUserWithFirestore` upserts `users/{uid}`. Google popup is the default; if the browser blocks it, login falls back to a full-page redirect and still returns to the original URL (so invite links keep `?tripId=`).
 
-## Real-time behavior
+## Folders
 
-- Dashboard trip list: `subscribeToUserTrips()` listens to the user document and reloads listed trips.
-- Trip details: `subscribeToTripById()` listens to the trip document and updates map + timeline immediately for all participants.
-- Stop edits and stop time changes are written via `updateStopInTrip()` and broadcast through Firestore snapshots.
+| Path | Role |
+|------|------|
+| `src/pages/` | Route screens: Login, Dashboard, Trip (thin wrapper) |
+| `src/features/trip/` | The trip workspace: page, map, timeline, modals |
+| `src/api/` | Firebase + trip/user writes and listeners. Import trip helpers from `src/api/trip` (the index), not individual files |
+| `src/hooks/` | Shared trip hooks (live document, selected day, money math, …) |
+| `src/utils/` | Pure helpers: times, dates, money split, Mapbox route fetch |
+| `src/context/` | `useAuth()`, `useOffline()` |
+| `src/components/` | Layout, header, shared buttons/inputs, create/add-stop modals |
+| `src/styles/` | Color tokens (`tokens.css`) and login/dashboard CSS (`ui.css`) |
+| `tests/` | Vitest files mirroring `src/` (e.g. `tests/utils/…`) |
+| `firestore.rules` | Who can read/write what. Deploy with the Firebase CLI or console |
 
-## Routing
+Trip-only CSS lives in `src/features/trip/trip.css`. Shared modal/form chrome is in `src/App.css`.
 
-- `Layout` wraps the router `Outlet` in `main.app-main` > `div.app-main-outlet` so the outlet is a flex child with `flex: 1 1 0%` and `min-height: 0`. That keeps the flex height chain unbroken for Trip/Dashboard (otherwise `trip-page-content` can compute to 0 height). The outlet is wrapped in **`ErrorBoundary`** (`src/components/ErrorBoundary.jsx`) so a render error in a route shows a recovery UI instead of breaking the whole tree.
-- Header brand text (**Neel's Travel Book**) is an interactive control that routes to `/dashboard` for quick navigation.
+## Screens
 
-## Tooling and dependencies
+**Login (`/login`)** — Google sign-in. Then `/dashboard`.
 
-- **`npm test`** / **`npm run test:watch`** — Vitest runs `tests/**/*.test.js` (mirrors `src/` areas, e.g. `tests/utils/` for `paymentSettlement`, `stopTime`). Config lives in `vite.config.js` under `test`.
-- **`npm run lint`** — ESLint; `react/prop-types` is off (project uses plain JS without PropTypes).
-- **Runtime dependencies** are limited to Firebase, React, router, Leaflet, icons, and `uuid` (via trip normalize). Chakra UI, Emotion, Framer Motion, and **`firebase-admin`** were removed from the client app (`firebase-admin` belongs in a Node backend only). After pulling, run **`npm install`** so `package-lock.json` matches `package.json`.
+**Dashboard (`/dashboard`)** — Your trip list. Create a trip (name, destination, dates) or join with a code. An invite link is `/dashboard?tripId=…` and joins after sign-in. The list stays live via `subscribeToUserTrips()`.
 
-- `/login`: welcome and sign in
-- `/dashboard`: protected user trip hub
-- `/trip/:tripId`: protected trip workspace
-- `/`: redirects to `/login`
+**Trip (`/trip/:tripId`)** — The workspace. `TripPage` loads the trip, then renders:
 
-## Key frontend modules
+- **Toolbar** — add stop, day title, share, clock (timeline), settings
+- **Map** — pins, driving line, flights as dotted arcs
+- **Timeline** (clock) — hours of the selected day; drag to reorder
+- **Stop card** — details / edit when a pin or pill is selected (floating card on desktop, modal on small screens)
+- **Island** — Flights, lodging, money
 
-### Layout and shared code
+Edits go through `src/api/trip` and show up for everyone on that trip because they all listen to the same document.
 
-- `src/styles/tokens.css` — **mood-board palette** (`--palette-*`), dashboard **`--color-dashboard-join-*`** (including **`--color-dashboard-join-input-border`** for join inputs only), **dark chrome** (`--color-bg-page` / `--color-surface*`), **olive** / **teal** accents, and **`--trip-*`**. **Trip**: **sand room** page; **toolbar** and **island** shells use **`--app-chrome-bg`** / **`--app-chrome-border`** (same **`--color-surface`** / **`--color-border`** as **Layout** `app-header`). **Sand** icon chips (**`--trip-toolbar-btn-*`**, mood-board **sand** + **sea** ink) on toolbar and island; **Add stop** alone uses **`.trip-tool-button--terra`**. **Timeline** uses **`--trip-timeline-*`** (**dashboard join** stationery). **DM Sans**, **Figtree**, **Pixelify Sans**; `.pixel-art` for sprites. Imported from `src/index.css`.
-- `src/styles/ui.css` — login + dashboard: sand room, **terra** “Start” bento, **sand/clay** join panel (`.dashboard-join-card` stack), **sea-elevated** trip tiles with **olive** hover border, light dashed empty state; **sea ink** on sand CTAs (`--color-primary-action-text`). **Layout** header uses **`--app-chrome-bg`** / **`--app-chrome-border`** (defined in `tokens.css`).
-- `src/illustrations/landing-hero-map.png` — pixel-art map scroll on `/login` (imported in `Login.jsx`; `.pixel-art` for crisp scaling).
-- `src/components/ui/` — small presentational building blocks: `Button` (`primary` | `secondary` | `tertiary` | `google`), `Card`, `Input`, `PageShell`, `TripListCard`. **`Login`** and **`Dashboard`** are built with these; the trip route additionally loads `features/trip/trip.css`.
-- `src/utils/` — pure helpers used across the UI (no React): stop time display/sort (`stopTime.js`), trip date headings and range checks (`tripDates.js`), lodging title normalization (`lodging.js`), money formatting (`formatMoney.js`), equal-split settlement math (`paymentSettlement.js`), Mapbox Directions route fetch + straight-line fallback (`mapboxRoute.js`).
-- `src/hooks/` — trip-focused hooks: `useTripDocument` (Firestore subscription + first-day selection), `useDestinationCoordinates` (geocode destination for the map; starts from **`MAP_FALLBACK_CENTER`** and falls back there when geocoding returns no result/errors so `MapView` never disappears to the plain canvas), `useStopSheetHeight` (ref to **`.trip-map-pane`** + sheet ref: returns **`stopSheetHeight`** for the island and **`mapLeftInsetPx`** = horizontal overlap between floating stop card and map pane for marker centering on **wide** viewports; **`useMobileStopModal`** (same `max-width: 768px` as trip CSS) short-circuits overlap to **0** when the stop UI is a viewport modal), with **`animationend`** / `ResizeObserver` remeasure and width fallback when overlap reads **0** during animation), **`useTripTimelineResize`** (when the time panel is open and **`TRIP_TIMELINE_SPLIT_MQ`** matches: refs on **`.trip-page-content`** + **`.trip-map-column`**, pointer drag on **`.trip-timeline-split-handle`**, **`mapBandPx`** + **`localStorage`**, clamps using content height + **`TRIP_MAP_BAND_MIN_PX`** / **`TRIP_TIMELINE_MIN_PX`**), `useTripPaymentAnalytics` (flattened payments + settlement overview), `useTripSpecialStopGroups` (flight/lodging groupings for modals), `useTripDaySelection` (day/stop derived state + day navigation), `useTouchPillDrag` (mobile timeline pill reorder), `useRequestCache` (in-memory `getOrSet` for repeated async work).
+## Data (Firestore)
 
-### Trip feature (`src/features/trip/`)
+Three collections:
 
-- `TripPage.jsx` — route entry for `/trip/:tripId`: wires hooks and API handlers, renders map + timeline, settings, island, and modals. Adds **`trip-page-content--with-timeline`** when the clock panel is open for **mobile stacking** styles in `trip.css`. **Page shell** (`.trip-page`) uses **`--color-bg-sand-room`**. **Toolbar** and **island** match **app header** chrome; **map** column stays **dark trip tile**. **Timeline** matches **join-card** paper. **Map** uses **`--trip-canvas-bg`** behind tiles.
-- `trip.css` — trip workspace layout and chrome (toolbar, map column, timeline, stop sheet, island, trip modals, markers). **Toolbar** uses grid **`auto minmax(0, 1fr) auto`** so the date/title column can shrink on narrow widths (older **`1fr auto 1fr`** let min-content widths overflow). Imported by `TripPage.jsx` (and `MapView.jsx` for map/marker rules). Shared modal primitives (`.modal-overlay`, `.form-group`, etc.) remain in `App.css`.
-- `constants.js` — trip-only constants (e.g. share-menu “copied” timeout).
-- `components/` — `MapView` (Leaflet + Mapbox Directions route), `ItineraryView` (hourly timeline + drag/drop), plus `TripToolbar`, `StopViewSheet` (forwarded ref for height measurement), `TripIsland`, `TripSettingsPopover`, `modals/` (`MoneyModal`, `AddPaymentModal`, `PaymentDetailModal`, `TripOnboardingCarousel` (tutorial carousel each time a trip workspace loads), `FlightsModal`, `LodgingModal`).
+**`users/{uid}`** — Profile plus `trips: string[]` (ids of trips you belong to).
 
-### Pages and API
+**`trips/{tripId}`** — The whole trip, including the itinerary, in **one document**:
 
-- `src/api/user.js` — `syncUserWithFirestore` on sign-in (merge profile fields); `getParticipantDisplayNamesByIds` reads `users/{uid}` when allowed — secondary to `trips.participantNames` for Money labels.
-- `src/api/trip/` (import as `../api/trip` — resolves to `trip/index.js`)
-  - `dates.js` — `getDatesBetween` for itinerary day rows
-  - `geocoding.js` — Nominatim forward/reverse geocode
-  - `flightLookup.js` — Aviationstack flight lookup and parsing (env: `VITE_AVIATIONSTACK_API_KEY`)
-  - `normalize.js` — Firestore trip/stop shape normalization (participants, stops, payments, invite code helper)
-  - `reads.js` — `getTripById`, `subscribeToTripById`, `getTripsForUser`, `subscribeToUserTrips`
-  - `lifecycle.js` — create trip, join by code/id, ensure `trip_invites` mapping, `deleteTripForCreator` (transaction: `arrayRemove` trip id on each participant’s `users` doc, then delete invite + trip)
-  - `itinerary.js` — stops, day title, settings, payments (`addPaymentToStop`, `deletePaymentFromStop`), `deleteStopFromTrip` (removes embedded payments with the stop), special stops, flight/lodging deletes, `completeTripSetup` (legacy / migrations)
-  - `index.js` — re-exports the public API (callers do not need to know the split)
-- `src/pages/Dashboard.jsx`
-  - two-column layout (sidebar: new trip + join code; main: trip grid cards)
-  - create modal trigger, join-by-code, join-by-link query param, realtime trip list
-- `src/pages/Trip.jsx`
-  - thin re-export of `src/features/trip/TripPage.jsx` so routing stays stable (`/trip/:tripId` still imports `./pages/Trip`).
-- `src/features/trip/components/MapView.jsx`
-  - Leaflet map — **Carto Voyager** raster tiles (`MAP_TILE_URL` / `MAP_TILE_ATTRIBUTION` in `constants.js`; warmer and more legible for trip planning than **Positron** / `light_all`)
-  - numbered stop markers and route polyline
-  - marker popup with stop name, address, and time
-  - defaults to fitting all valid stop coordinates into view (`fitBounds` with padding; single-stop zoom-in behavior). Day/date changes pass an explicit `fitViewKey` so fit-to-stops always reruns even when stop coordinates happen to match, and ongoing map animations are stopped before fitting to avoid janky animation conflicts. No-stop days explicitly reset fit de-duplication state so navigating `stops -> no stops -> same stops` still triggers a fresh fit. When a stop is selected, the map **`flyTo`s a computed geographic center** at zoom 17 so the pin lands in the visible area **to the right of the floating stop card** on desktop; if **`mapLeftInsetPx`** changes while the same stop stays selected (resize), a short fly refines the center.
-- `src/features/trip/components/ItineraryView.jsx`
-  - hourly timeline list
-  - stacked stops for same hour
-  - rendered inside the slide-in time panel, which scrolls as one column (`overflow-y: auto`) with a sticky date nav; **narrow layouts** use a **horizontally scrollable** stop strip (`overflow-x: scroll`, **`touch-action: manipulation`** on the vertical `.time-panel-scroll` and on pills — iOS handles nested scroll better than `pan-x`-only; strip uses **`touch-action: auto`** + compositor hint); **HTML5 `draggable`** stays **`(pointer: fine)`** only — native touch DnD is unreliable on iOS
+- `name`, `destination`, `startDate` / `endDate` (`YYYY-MM-DD`)
+- `creatorId`, `participants` (user ids), `participantNames` (id → display name so we don’t have to read other users’ docs)
+- `inviteCode`, `description`
+- `itinerary`: array of days `{ date, title?, stops: [...] }`
 
-## Architectural trade-offs
+A **stop** is `{ id, title, notes, location, stopTime, timestampHour, latitude, longitude, createdBy, stopType, members, metadata, payments }`.
 
-- Trip document stores full itinerary as an embedded array.
-  - Pro: simple reads and easy single-document real-time sync.
-  - Con: contention risk for very large itineraries or heavy concurrent edits.
-- Hour-based scheduling (`timestampHour`) instead of minute precision.
-  - Pro: easier timeline UX and grouping.
-  - Con: less precise than full timestamp.
-- Route geometry: **Mapbox Directions** (`https://api.mapbox.com/directions/v5/...`) via **`fetch`** from the browser. Set **`VITE_MAPBOX_ACCESS_TOKEN`** (Mapbox **default public** token). Requests use **`geometries=geojson`**, **`overview=full`** (follows roads closely vs. simplified), and **`radiuses`** so waypoints snap to the road graph. Requests are chunked to **25 waypoints** per call (Mapbox limit). Without a token, the map draws a **straight polyline** between stops. **`MapView`**: stable refetch key (ids + rounded lat/lng); **debounced** route fetch (`ROUTE_FETCH_DEBOUNCE_MS` in `features/trip/constants.js`) so rapid Firestore updates do not stack redundant requests; polyline **`key`** includes **`routePoints.length`** so react-leaflet remounts when route geometry arrives. **Debug:** in **`import.meta.env.DEV`** or with **`VITE_ROUTE_DEBUG=true`**, filter the console by **`[route]`** (`mapboxRoute.js` + **`MapView`**).
-  - Pro: reliable road geometry vs. a public demo router; straight fallback when the API fails or the token is missing.
-  - Con: Mapbox account, quotas, and [attribution](https://docs.mapbox.com/help/getting-started/attribution/) for Directions; straight segments when offline or on error.
+- `stopType`: `regular` | `flight` | `lodging`
+- `timestampHour` is 0–23; the timeline groups by hour
+- `payments` live **on the stop**, not in a separate collection
 
-## Mobile viewport (iOS Safari)
+**`trip_invites/{code}`** — `{ code, tripId, createdBy }`. Lets someone look up a trip by code without listing every trip.
 
-The shell (`#root`, `.app`, `html`/`body`) uses **`100dvh`** with a **`100vh` fallback**. On iPhone Safari, **`100vh`** is tied to the **layout** viewport and is often **taller** than the area you actually see when the **bottom browser chrome** is visible, so flex layouts looked “cut off” at the bottom. **`100dvh`** (dynamic viewport height) tracks the **visible** viewport as toolbars show and hide. **`index.html`** sets **`viewport-fit=cover`** so **`env(safe-area-inset-*)`** matches edge-to-edge layouts with the home indicator.
+### Why one trip document?
 
-## Next improvements
+One snapshot updates the map, timeline, money, and settings together. That is simple. The cost is that two people editing the same trip at once can overwrite each other, and a huge itinerary makes the document large. If that becomes a problem, stops would move to a subcollection.
 
-- Expand Vitest coverage under `tests/` (hooks with mocks, critical API normalize paths).
-- Replace hour-only time with exact timestamps.
-- Add optimistic UI conflict handling for simultaneous stop edits.
-- Add trip role model (creator/admin/editor/viewer).
-- Move high-write stop data to subcollection if trip docs become too large.
+## Live updates
 
-## Security rules shape for private trips
+`subscribeToTripById` (`src/api/trip/reads.js`) uses Firestore `onSnapshot`. `useTripDocument` puts that into React state and picks the first day if none is selected. Offline, it can show a last-known copy from IndexedDB (`tripReadCache`) as read-only.
 
-To keep trips private, use participant-gated reads on `trips` and a separate invite mapping:
-- `users/{uid}`: user can read/create/update own document; **update** by **another** user is allowed only when the write changes **nothing except** `trips`, removes **one logical trip id** (after de-duping), and that trip’s **`creatorId`** is the caller — supports creator **delete trip** (strip id from all members) and **remove participant**
-- `trips/{tripId}`: read/update only if `participants` contains `request.auth.uid`; **delete** only if `resource.data.creatorId == request.auth.uid` (needed for creator delete-trip)
-- `trip_invites/{code}`: signed-in users can read by exact code; create allowed for creator on trip creation; **delete** allowed when the doc’s `tripId` matches a trip whose `creatorId` is the caller (or use Admin SDK in a Cloud Function if you prefer centralizing deletes)
+Writes (`updateStopInTrip`, payments, settings, …) patch the trip document. Everyone’s listener fires. There is no extra websocket layer.
 
-This avoids making all trips readable just to support join-by-code.
+`normalize.js` runs on the way in so older documents still have a predictable shape.
 
-Join flow implementation note:
-- client reads `trip_invites/{code}` to get `tripId`
-- client writes `arrayUnion(auth.uid)` to `trips/{tripId}.participants`
-- client writes `arrayUnion(tripId)` to `users/{uid}.trips`
-- no pre-read of the trip is required during join
+## Trip page (where the complexity is)
 
-### Deploying rules (fixes “missing or insufficient permission” on delete)
+`TripPage.jsx` is the orchestrator. It does not fetch with `useEffect` + `getDoc` itself; hooks do:
 
-The repo includes **`firestore.rules`** at the project root (and **`firebase.json`** pointing at it). Without **`allow delete`** on `trips` and `trip_invites`, **Delete trip** fails in the client.
+| Hook | What it does |
+|------|----------------|
+| `useTripDocument` | Live trip object |
+| `useTripDaySelection` | Selected day + that day’s stops |
+| `useDestinationCoordinates` | Geocode the trip destination so the empty map has a center |
+| `useDebouncedDrivingRoute` | Mapbox road line for the current stops (waits briefly so Firestore chatter doesn’t spam the API) |
+| `useTripPaymentAnalytics` | Totals and “who owes whom” |
+| `useTripSpecialStopGroups` | Flights / lodging grouped for their modals |
+| `useTripModalController` | Which modal is open |
+| `useStopSheetHeight` / `useTripTimelineResize` | Layout: stop-card inset, mobile map/timeline split |
 
-1. **Firebase CLI** (from project root, after `firebase login` and `firebase use <your-project-id>`):
-   - `firebase deploy --only firestore:rules`
-2. **Console**: Firebase → Firestore → Rules → paste the contents of `firestore.rules` → **Publish**.
+Map and timeline both read the same `trip` + selected day. Selecting a stop is just state; the map flies to it and the card opens.
 
-If your project still uses older/different rules, merge in the **`users`** `allow update` exception, plus **`allow delete`** on `trips` and `trip_invites`, from `firestore.rules`.
+**Map (`MapView`)**
+
+- Leaflet for pins, popups, and polylines
+- Basemap: Mapbox vector tiles with an in-repo Voyager-like style (`map/voyagerStyle.js` + `MapboxVoyagerLayer`). Optional override: `VITE_MAPBOX_STYLE`
+- Roads: Mapbox Directions (`src/utils/mapboxRoute.js`). Needs `VITE_MAPBOX_ACCESS_TOKEN`. No token → straight lines between stops
+- Addresses: OpenStreetMap Nominatim (`src/api/trip/geocoding.js`)
+
+**Flights / lodging**
+
+Modals write special stops onto the right days (flight lookup can use Aviationstack if `VITE_AVIATIONSTACK_API_KEY` is set). Deleting a flight or stay removes those stops across the trip.
+
+## Money and settlement
+
+Money is **not** a bank and it does **not** record that someone paid someone back. It only answers: given what was logged on stops, who is up and who is down, and a small set of transfers that would zero everyone out.
+
+Code: `useTripPaymentAnalytics` builds the numbers; `paymentSplitMembers.js` decides who shares each payment; `paymentSettlement.js` turns balances into transfers. The Money modal has **Overview** (vs you) and **Logs** (every payment).
+
+### Where a payment lives
+
+Each payment sits on a **stop**: `{ id, payerId, payerName, amount, reason, createdAt?, splitMembers? }`. Amount must be finite and `> 0`. There is no payments collection.
+
+`useTripPaymentAnalytics` flattens every stop on every day into one list (duplicate payment ids are skipped).
+
+### Who shares each payment
+
+`resolvePaymentSplitMembers(splitMembers, tripParticipants, payerId)`:
+
+- `splitMembers` missing or empty → **everyone currently on the trip** (not “people on that stop”)
+- an explicit id list → those people, minus anyone who left the trip
+- no participants at all → fall back to the payer alone
+
+Each person on that list owes `amount / splitMembers.length`. The payer is credited the full `amount`.
+
+### Balances
+
+Start every participant at `0`. For each valid payment:
+
+1. Add `amount` to the payer
+2. Subtract `amount / n` from each person in the split (including the payer if they are in the split)
+
+After all payments, a person’s balance is **what they paid minus their assigned share**.
+
+- **Positive** — the group owes them (they covered more than their share)
+- **Negative** — they owe the group
+- **Zero** — even
+
+“Your assigned share” on Overview is the sum of those `amount / n` slices where you were in the split. “Total trip spend” is the sum of payment amounts.
+
+### Settle-up (greedy)
+
+Balances always sum to about zero. `computeGreedySettlementTransfers` walks two lists — people who owe, people who are owed — and matches the next debtor to the next creditor for `min(what they still owe, what the creditor is still owed)`. Amounts are rounded to cents. Dust smaller than `SETTLEMENT_EPS` (`0.005`) is ignored.
+
+That plan is **one** valid way to settle. It is not unique (A→B vs A→C→B can both work). Overview then, **for you only**, nets the transfers between you and each other person (`netSettlementBetweenUserAndOther`). Positive = they should pay you; negative = you should pay them.
+
+It does not create new payment records when someone “settles.” It is a suggestion from current logs.
+
+```mermaid
+flowchart LR
+  P["Payments on stops"] --> B["Balance per person\npaid − share"]
+  B --> T["Greedy transfers\ndebtors → creditors"]
+  T --> O["Overview rows\nnet vs you"]
+  P --> L["Logs table"]
+```
+
+### Example
+
+Alex, Blair, Casey. Alex logs a $60 dinner split with everyone.
+
+| Person | Paid | Share | Balance |
+|--------|------|-------|---------|
+| Alex | 60 | 20 | **+40** |
+| Blair | 0 | 20 | **−20** |
+| Casey | 0 | 20 | **−20** |
+
+Suggested transfers: Blair → Alex $20, Casey → Alex $20.
+
+If you are Alex, Overview says Blair owes you $20 and Casey owes you $20. If you are Blair, it says you owe Alex $20.
+
+Add a second payment: Blair logs $15 drinks split with everyone. Shares are $5 each.
+
+| Person | Running balance |
+|--------|-----------------|
+| Alex | +40 − 5 = **+35** |
+| Blair | −20 + 15 − 5 = **−10** |
+| Casey | −20 − 5 = **−25** |
+
+Greedy: Casey pays Alex $25, Blair pays Alex $10. Same idea — people in the hole pay people who are ahead until balances are ~0.
+
+### What this is not
+
+- Not “Blair already paid Alex back” — logging a repayment as a payment would change the balances again
+- Not weighted splits (50/50 only in the sense of equal among the selected people)
+- Not stop-membership by default on old payments — those split across the **current trip roster**
+
+
+Trips are not public. You can read/update a trip only if your uid is in `participants`. Join works like this:
+
+1. Client reads `trip_invites/{code}` → `tripId`
+2. Client adds itself to `trips/{id}.participants` and `users/{uid}.trips`
+
+The creator can remove people or delete the trip (that delete also strips the trip id from every member’s `users.trips` and removes the invite doc). Rules for all of this are in `firestore.rules` — deploy them or Delete trip / join will fail with permission errors.
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+## Running it
+
+```bash
+npm install
+npm run dev          # Vite, usually http://localhost:5173
+npm test             # Vitest
+npm run lint
+```
+
+Put secrets in `.env` (Vite only exposes names starting with `VITE_`). Restart the dev server after changing them.
+
+| Variable | Used for |
+|----------|----------|
+| `VITE_FIREBASE_*` | Auth + Firestore (required) |
+| `VITE_MAPBOX_ACCESS_TOKEN` | Map style + driving routes |
+| `VITE_MAPBOX_STYLE` | Optional Mapbox Studio style URL |
+| `VITE_AVIATIONSTACK_API_KEY` | Flight lookup |
+| `VITE_CLOUDINARY_*` | Stop photo uploads |
+
+Add `localhost` under Firebase Auth → Authorized domains.
+
+## Design choices (short)
+
+- **Itinerary in the trip document** — easy realtime; weak under heavy concurrent edits
+- **Hour, not exact minute, on the timeline** — simpler grouping; less precision
+- **Names copied onto the trip** — Money/settings work without reading other `users` docs
+- **Client-side Mapbox + Nominatim** — no server of our own; depends on tokens and those providers’ limits
+- **Offline** — edits are not queued; the UI blocks saves and may show a cached trip
+
+## If you want to change X
+
+| Change | Start here |
+|--------|------------|
+| New screen / URL | `src/App.jsx`, then a file under `src/pages/` |
+| Sign-in behavior | `src/context/AuthContext.jsx`, `src/pages/Login.jsx` |
+| Create / join / delete trip | `src/api/trip/lifecycle.js`, `src/pages/Dashboard.jsx` |
+| Stop create/edit/delete, payments | `src/api/trip/itinerary.js` |
+| Money totals / who owes whom | `src/hooks/useTripPaymentAnalytics.js`, `src/utils/paymentSettlement.js`, `src/utils/paymentSplitMembers.js` |
+| Map look or route line | `src/features/trip/map/voyagerStyle.js`, `src/utils/mapboxRoute.js` |
+| Timeline hours / drag | `src/features/trip/components/ItineraryView.jsx`, `src/utils/stopTime.js` |
+| Who can read a trip | `firestore.rules` |
+| Colors | `src/styles/tokens.css` |

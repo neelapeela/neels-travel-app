@@ -47,9 +47,29 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
+        // Mapbox GL is lazy-loaded on the trip map (~2 MiB). Skip precache so the
+        // service worker stays under Workbox’s default 2 MiB per-file cap.
+        maximumFileSizeToCacheInBytes: 2 * 1024 * 1024,
+        manifestTransforms: [
+          async (entries) => ({
+            manifest: entries.filter((entry) => !String(entry.url).includes('mapbox-gl')),
+            warnings: []
+          })
+        ]
       },
     }),
   ],
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules/mapbox-gl') || id.includes('mapbox-gl-leaflet')) {
+            return 'mapbox-gl'
+          }
+        }
+      }
+    }
+  },
   optimizeDeps: {
     include: ['mapbox-gl', 'mapbox-gl-leaflet']
   },

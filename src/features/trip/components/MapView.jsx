@@ -1,13 +1,14 @@
 import { MapContainer, TileLayer, Polyline, FeatureGroup } from 'react-leaflet'
 import 'leaflet/dist/leaflet.css'
 import L from 'leaflet'
-import { useMemo } from 'react'
+import { lazy, Suspense, useMemo } from 'react'
 import { getSortMinutes } from '../../../utils/stopTime'
 import { useDebouncedDrivingRoute } from '../hooks/useDebouncedDrivingRoute'
 import { getMapboxAccessToken, MAP_TILE_FALLBACK_URL } from '../constants'
 import { FitStopsToView, FlyToSelectedStop, ResizeHandler } from './map/leafletMapLayers'
-import MapboxVoyagerLayer from './map/MapboxVoyagerLayer'
 import StopMarkersLayer from './map/StopMarkersLayer'
+
+const MapboxVoyagerLayer = lazy(() => import('./map/MapboxVoyagerLayer'))
 import '../trip.css'
 import { colorForMembersKey, membersKey } from '../utils/stopMembers'
 
@@ -68,7 +69,9 @@ function MapInner({
   return (
     <>
       {mapboxToken ? (
-        <MapboxVoyagerLayer accessToken={mapboxToken} />
+        <Suspense fallback={null}>
+          <MapboxVoyagerLayer accessToken={mapboxToken} />
+        </Suspense>
       ) : (
         <TileLayer attribution="" url={MAP_TILE_FALLBACK_URL} />
       )}
