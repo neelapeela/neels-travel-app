@@ -680,6 +680,15 @@
   background-color: var(--trip-canvas-bg);
 }
 
+.map-view .leaflet-gl-layer,
+.map-view .mapboxgl-map {
+  background: #fbf8f3;
+}
+
+.map-view .mapboxgl-ctrl-attrib {
+  display: none !important;
+}
+
 /* Attribution disabled on map (product choice); hide if any control is reintroduced. */
 .map-view .leaflet-control-attribution {
   display: none !important;

@@ -52,7 +52,7 @@ export function straightLinePositions(stops) {
   return stopsWithValidCoords(stops).map((s) => [s.latitude, s.longitude])
 }
 
-function getMapboxAccessToken() {
+export function getMapboxAccessToken() {
   const raw = typeof import.meta !== 'undefined' && import.meta.env?.VITE_MAPBOX_ACCESS_TOKEN
   return typeof raw === 'string' ? raw.trim() : ''
 }

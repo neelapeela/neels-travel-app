@@ -4,8 +4,9 @@ import L from 'leaflet'
 import { useMemo } from 'react'
 import { getSortMinutes } from '../../../utils/stopTime'
 import { useDebouncedDrivingRoute } from '../hooks/useDebouncedDrivingRoute'
-import { MAP_TILE_URL } from '../constants'
+import { getMapboxAccessToken, MAP_TILE_FALLBACK_URL } from '../constants'
 import { FitStopsToView, FlyToSelectedStop, ResizeHandler } from './map/leafletMapLayers'
+import MapboxVoyagerLayer from './map/MapboxVoyagerLayer'
 import StopMarkersLayer from './map/StopMarkersLayer'
 import '../trip.css'
 import { colorForMembersKey, membersKey } from '../utils/stopMembers'
@@ -63,9 +64,14 @@ function MapInner({
   participants = [],
   onSelectStop
 }) {
+  const mapboxToken = getMapboxAccessToken()
   return (
     <>
-      <TileLayer attribution="" url={MAP_TILE_URL} />
+      {mapboxToken ? (
+        <MapboxVoyagerLayer accessToken={mapboxToken} />
+      ) : (
+        <TileLayer attribution="" url={MAP_TILE_FALLBACK_URL} />
+      )}
       {routeGroups.map((group) => (
         <RouteLayer key={group.key} stops={group.stops} color={group.color} groupKey={group.key} />
       ))}

@@ -50,6 +50,9 @@ export default defineConfig({
       },
     }),
   ],
+  optimizeDeps: {
+    include: ['mapbox-gl', 'mapbox-gl-leaflet']
+  },
   test: {
     environment: 'node',
     include: ['tests/**/*.test.js']

@@ -1,3 +1,5 @@
+import { getMapboxAccessToken } from '../../utils/mapboxRoute'
+
 /** How long “Code copied” / “Link copied” stays visible in the share menu. */
 export const SHARE_FEEDBACK_CLEAR_MS = 1500
 
@@ -5,19 +7,22 @@ export const SHARE_FEEDBACK_CLEAR_MS = 1500
 export const ROUTE_FETCH_DEBOUNCE_MS = 350
 
 /**
- * Raster basemap: Carto **Voyager** — softer and more “travel guide” than Positron (`light_all`),
- * still free for OSM-backed apps with attribution. Subdomains a–c.
- * @see https://carto.com/basemaps/
+ * Optional Mapbox Studio style (`mapbox://styles/user/id` or a style JSON URL).
+ * When unset, the trip map uses the in-repo Voyager-inspired Mapbox style.
  */
-export const MAP_TILE_URL = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png'
+export function getMapboxStyleOverride() {
+  const raw = typeof import.meta !== 'undefined' && import.meta.env?.VITE_MAPBOX_STYLE
+  return typeof raw === 'string' ? raw.trim() : ''
+}
 
-/** Reference copy for Carto/OSM — not shown on map (`MapView` uses `attributionControl={false}`). */
-export const MAP_TILE_ATTRIBUTION =
-  '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+/** Raster fallback when `VITE_MAPBOX_ACCESS_TOKEN` is missing. */
+export const MAP_TILE_FALLBACK_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
 
-/** Reference copy for Mapbox Directions (see `mapboxRoute.js`); not shown on map. */
+/** Reference copy for Mapbox tiles + Directions; not shown on map. */
 export const MAPBOX_ROUTE_ATTRIBUTION =
-  '<a href="https://www.mapbox.com/about/maps/">© Mapbox</a>'
+  '<a href="https://www.mapbox.com/about/maps/">© Mapbox</a> <a href="https://www.openstreetmap.org/copyright">© OpenStreetMap</a>'
+
+export { getMapboxAccessToken }
 
 /** Never leave the map pane blank while destination geocoding is pending/fails. */
 export const MAP_FALLBACK_CENTER = { lat: 37.7749, lng: -122.4194 }
